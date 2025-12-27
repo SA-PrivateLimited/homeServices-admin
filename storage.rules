@@ -1,0 +1,225 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ========================================
+    // HELPER FUNCTIONS
+    // ========================================
+
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper function to check if user is admin
+    function isAdmin() {
+      return isAuthenticated() &&
+             firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Helper function to check if user is provider
+    function isProvider() {
+      return isAuthenticated() &&
+             firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'provider';
+    }
+
+    // Helper function to check if user is customer
+    function isCustomer() {
+      return isAuthenticated() &&
+             firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'customer';
+    }
+
+    // Helper function to check file size (max 5MB for images, 10MB for documents)
+    function isValidImageSize() {
+      return request.resource.size < 5 * 1024 * 1024; // 5MB
+    }
+
+    function isValidDocumentSize() {
+      return request.resource.size < 10 * 1024 * 1024; // 10MB
+    }
+
+    // Helper function to check if file is an image
+    function isImage() {
+      return request.resource.contentType.matches('image/.*');
+    }
+
+    // Helper function to check if file is a PDF
+    function isPDF() {
+      return request.resource.contentType == 'application/pdf';
+    }
+
+    // ========================================
+    // USER PROFILE PICTURES (Customers, Providers, Admins)
+    // ========================================
+    match /users/{userId}/profile/{fileName} {
+      // Allow everyone to read profile pictures (for public profiles)
+      allow read: if true;
+
+      // Allow users (customers, providers, admins) to upload their own profile pictures
+      allow write: if isAuthenticated() &&
+                     request.auth.uid == userId &&
+                     isImage() &&
+                     isValidImageSize();
+
+      // Allow admins to manage all profile pictures
+      allow write: if isAdmin();
+    }
+
+    // ========================================
+    // SERVICE PROVIDER DOCUMENTS (via serviceProviders path)
+    // ========================================
+    match /serviceProviders/{providerId}/documents/{fileName} {
+      // Allow providers to read their own documents
+      allow read: if isAuthenticated() &&
+                    (request.auth.uid == providerId ||
+                     firestore.get(/databases/(default)/documents/serviceProviders/$(providerId)).data.email == request.auth.token.email);
+
+      // Allow admins to read all provider documents
+      allow read: if isAdmin();
+
+      // Allow providers to upload their own documents (ID proof, certificates, etc.)
+      allow write: if isAuthenticated() &&
+                     (request.auth.uid == providerId ||
+                      firestore.get(/databases/(default)/documents/serviceProviders/$(providerId)).data.email == request.auth.token.email) &&
+                     (isImage() || isPDF()) &&
+                     isValidDocumentSize();
+
+      // Allow admins to manage all provider documents
+      allow write: if isAdmin();
+    }
+
+    // ========================================
+    // PROVIDER DOCUMENTS (via provider_documents path - used by provider app)
+    // ========================================
+    match /provider_documents/{docType}/{fileName} {
+      // Allow providers to read documents (they can read their own)
+      allow read: if isAuthenticated() && isProvider();
+
+      // Allow admins to read all provider documents
+      allow read: if isAdmin();
+
+      // Allow providers to upload their own documents (ID proof, address proof, certificates)
+      allow write: if isAuthenticated() &&
+                     isProvider() &&
+                     (isImage() || isPDF()) &&
+                     isValidDocumentSize();
+
+      // Allow admins to manage all provider documents
+      allow write: if isAdmin();
+    }
+
+    // ========================================
+    // SERVICE PROVIDER PHOTOS (Work samples, profile pictures)
+    // ========================================
+    match /serviceProviders/{providerId}/photos/{fileName} {
+      // Allow everyone to read provider photos (for public profiles)
+      allow read: if true;
+
+      // Allow providers to upload their own photos
+      allow write: if isAuthenticated() &&
+                     (request.auth.uid == providerId ||
+                      firestore.get(/databases/(default)/documents/serviceProviders/$(providerId)).data.email == request.auth.token.email) &&
+                     isImage() &&
+                     isValidImageSize();
+
+      // Allow admins to manage all provider photos
+      allow write: if isAdmin();
+    }
+
+    // ========================================
+    // PROVIDER PROFILE IMAGES (via provider_profiles path - used by provider app)
+    // ========================================
+    match /provider_profiles/{fileName} {
+      // Allow everyone to read provider profile images
+      allow read: if true;
+
+      // Allow providers to upload their own profile images
+      allow write: if isAuthenticated() &&
+                     isProvider() &&
+                     isImage() &&
+                     isValidImageSize();
+
+      // Allow admins to manage all provider profile images
+      allow write: if isAdmin();
+    }
+
+    // ========================================
+    // SERVICE REQUEST IMAGES (Before/After photos)
+    // ========================================
+    match /serviceRequests/{requestId}/images/{fileName} {
+      // Allow customers and assigned providers to read service request images
+      allow read: if isAuthenticated() &&
+                    (firestore.get(/databases/(default)/documents/serviceRequests/$(requestId)).data.customerId == request.auth.uid ||
+                     firestore.get(/databases/(default)/documents/serviceRequests/$(requestId)).data.providerId == request.auth.uid);
+
+      // Allow admins to read all service request images
+      allow read: if isAdmin();
+
+      // Allow customers and providers to upload images for their service requests
+      allow write: if isAuthenticated() &&
+                     (firestore.get(/databases/(default)/documents/serviceRequests/$(requestId)).data.customerId == request.auth.uid ||
+                      firestore.get(/databases/(default)/documents/serviceRequests/$(requestId)).data.providerId == request.auth.uid) &&
+                     isImage() &&
+                     isValidImageSize();
+
+      // Allow admins to manage all service request images
+      allow write: if isAdmin();
+    }
+
+    // ========================================
+    // CHAT ATTACHMENTS
+    // ========================================
+    match /messages/{requestId}/{messageId}/{fileName} {
+      // Allow customers and providers to read chat attachments
+      allow read: if isAuthenticated() &&
+                    (firestore.get(/databases/(default)/documents/serviceRequests/$(requestId)).data.customerId == request.auth.uid ||
+                     firestore.get(/databases/(default)/documents/serviceRequests/$(requestId)).data.providerId == request.auth.uid);
+
+      // Allow admins to read all chat attachments
+      allow read: if isAdmin();
+
+      // Allow customers and providers to upload chat attachments
+      allow write: if isAuthenticated() &&
+                     (firestore.get(/databases/(default)/documents/serviceRequests/$(requestId)).data.customerId == request.auth.uid ||
+                      firestore.get(/databases/(default)/documents/serviceRequests/$(requestId)).data.providerId == request.auth.uid) &&
+                     (isImage() || isPDF()) &&
+                     isValidDocumentSize();
+
+      // Allow admins to manage all chat attachments
+      allow write: if isAdmin();
+    }
+
+    // ========================================
+    // SERVICE CATEGORY ICONS
+    // ========================================
+    match /serviceCategories/{categoryId}/{fileName} {
+      // Allow everyone to read category icons
+      allow read: if true;
+
+      // Only admins can upload category icons
+      allow write: if isAdmin() &&
+                     isImage() &&
+                     isValidImageSize();
+    }
+
+    // ========================================
+    // PROVIDER PROFILE IMAGES (Admin uploads)
+    // ========================================
+    match /providers/{fileName} {
+      // Allow everyone to read provider profile images
+      allow read: if true;
+
+      // Only admins can upload provider profile images
+      allow write: if isAdmin() &&
+                     isImage() &&
+                     isValidImageSize();
+    }
+
+    // ========================================
+    // DEFAULT: Deny all other paths
+    // ========================================
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
