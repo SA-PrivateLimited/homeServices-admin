@@ -16,12 +16,58 @@ import type {User} from '../types/consultation';
 
 interface Customer extends User {
   role?: 'customer';
+  phoneVerified?: boolean;
+  secondaryPhone?: string;
+  secondaryPhoneVerified?: boolean;
+  homeAddress?: {
+    address: string;
+    city?: string;
+    state?: string;
+    pincode?: string;
+  };
+  officeAddress?: {
+    address: string;
+    city?: string;
+    state?: string;
+    pincode?: string;
+  };
+  savedAddresses?: Array<{
+    address: string;
+    city?: string;
+    state?: string;
+    pincode?: string;
+  }>;
+}
+
+interface JobCard {
+  id: string;
+  providerId: string;
+  providerName: string;
+  customerId: string;
+  customerName: string;
+  customerPhone: string;
+  serviceType: string;
+  problem?: string;
+  status: 'pending' | 'accepted' | 'in-progress' | 'completed' | 'cancelled';
+  scheduledTime?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+  customerAddress?: {
+    address: string;
+    city?: string;
+    state?: string;
+    pincode: string;
+  };
 }
 
 export default function AdminCustomersListScreen({navigation}: any) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [expandedCustomerId, setExpandedCustomerId] = useState<string | null>(null);
+  const [customerJobCards, setCustomerJobCards] = useState<{[key: string]: JobCard[]}>({});
+  const [loadingJobCards, setLoadingJobCards] = useState<{[key: string]: boolean}>({});
+  const [expandedJobCards, setExpandedJobCards] = useState<string | null>(null);
   const {currentUser} = useStore();
 
   useEffect(() => {
@@ -75,6 +121,72 @@ export default function AdminCustomersListScreen({navigation}: any) {
     return () => unsubscribe();
   }, [currentUser, navigation]);
 
+  // Fetch job cards when customer is expanded
+  useEffect(() => {
+    if (expandedCustomerId) {
+      if (!customerJobCards[expandedCustomerId] && !loadingJobCards[expandedCustomerId]) {
+        setLoadingJobCards(prev => ({...prev, [expandedCustomerId]: true}));
+        const unsubscribe = firestore()
+          .collection('jobCards')
+          .where('customerId', '==', expandedCustomerId)
+          .orderBy('createdAt', 'desc')
+          .onSnapshot(
+            snapshot => {
+              const cardsList = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data(),
+                createdAt: doc.data().createdAt?.toDate() || new Date(),
+                updatedAt: doc.data().updatedAt?.toDate() || new Date(),
+                scheduledTime: doc.data().scheduledTime?.toDate(),
+              })) as JobCard[];
+
+              setCustomerJobCards(prev => ({...prev, [expandedCustomerId]: cardsList}));
+              setLoadingJobCards(prev => ({...prev, [expandedCustomerId]: false}));
+            },
+            error => {
+              console.error('Error loading job cards:', error);
+              setCustomerJobCards(prev => ({...prev, [expandedCustomerId]: []}));
+              setLoadingJobCards(prev => ({...prev, [expandedCustomerId]: false}));
+            },
+          );
+
+        return () => unsubscribe();
+      }
+    }
+  }, [expandedCustomerId]);
+
+  const getStatusColor = (status: JobCard['status']) => {
+    switch (status) {
+      case 'completed':
+        return '#34C759';
+      case 'in-progress':
+        return '#007AFF';
+      case 'accepted':
+        return '#FF9500';
+      case 'cancelled':
+        return '#FF3B30';
+      case 'pending':
+      default:
+        return '#8E8E93';
+    }
+  };
+
+  const getStatusIcon = (status: JobCard['status']) => {
+    switch (status) {
+      case 'completed':
+        return 'check-circle';
+      case 'in-progress':
+        return 'build';
+      case 'accepted':
+        return 'check';
+      case 'cancelled':
+        return 'cancel';
+      case 'pending':
+      default:
+        return 'hourglass-empty';
+    }
+  };
+
   const filteredCustomers = customers.filter(customer => {
     const matchesSearch =
       customer.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -122,45 +234,237 @@ export default function AdminCustomersListScreen({navigation}: any) {
             <Text style={styles.emptyText}>No customers found</Text>
           </View>
         ) : (
-          filteredCustomers.map(customer => (
-            <View key={customer.id} style={styles.customerCard}>
-              <View style={styles.customerInfo}>
-                <View style={[styles.roleBadge, {backgroundColor: '#4A90E220'}]}>
-                  <Icon name="person" size={20} color="#4A90E2" />
-                </View>
-                <View style={styles.customerDetails}>
-                  <Text style={styles.customerName}>{customer.name || 'No name'}</Text>
-                  {customer.email && (
-                    <Text style={styles.customerEmail}>{customer.email}</Text>
-                  )}
-                  {customer.phone && (
-                    <Text style={styles.customerPhone}>{customer.phone}</Text>
-                  )}
-                  {customer.secondaryPhone && (
-                    <Text style={styles.customerPhone}>
-                      Secondary: {customer.secondaryPhone}
-                      {customer.secondaryPhoneVerified && (
-                        <Icon name="verified" size={14} color="#4CAF50" style={styles.verifiedIcon} />
-                      )}
-                    </Text>
-                  )}
-                  <View style={styles.statusContainer}>
-                    <Text style={styles.statusLabel}>Phone Verified: </Text>
-                    <Icon
-                      name={customer.phoneVerified ? "check-circle" : "cancel"}
-                      size={16}
-                      color={customer.phoneVerified ? "#4CAF50" : "#FF3B30"}
-                    />
+          filteredCustomers.map(customer => {
+            const isExpanded = expandedCustomerId === customer.id;
+            return (
+              <TouchableOpacity
+                key={customer.id}
+                style={styles.customerCard}
+                onPress={() => setExpandedCustomerId(isExpanded ? null : customer.id)}
+                activeOpacity={0.7}>
+                <View style={styles.customerInfo}>
+                  <View style={[styles.roleBadge, {backgroundColor: '#4A90E220'}]}>
+                    <Icon name="person" size={20} color="#4A90E2" />
                   </View>
-                  {customer.createdAt && (
-                    <Text style={styles.createdAt}>
-                      Joined: {customer.createdAt.toLocaleDateString()}
-                    </Text>
-                  )}
+                  <View style={styles.customerDetails}>
+                    <View style={styles.customerHeader}>
+                      <Text style={styles.customerName}>{customer.name || 'No name'}</Text>
+                      <Icon
+                        name={isExpanded ? "expand-less" : "expand-more"}
+                        size={24}
+                        color="#8E8E93"
+                      />
+                    </View>
+                    
+                    {/* Collapsed View - Show essential info */}
+                    {!isExpanded && (
+                      <>
+                        {customer.email && (
+                          <Text style={styles.customerEmail}>{customer.email}</Text>
+                        )}
+                        {customer.phone && (
+                          <View style={styles.phoneRow}>
+                            <Text style={styles.customerPhone}>{customer.phone}</Text>
+                            <Icon
+                              name={customer.phoneVerified ? "check-circle" : "cancel"}
+                              size={16}
+                              color={customer.phoneVerified ? "#4CAF50" : "#FF3B30"}
+                              style={styles.verifiedIconInline}
+                            />
+                          </View>
+                        )}
+                        {customer.secondaryPhone && (
+                          <View style={styles.phoneRow}>
+                            <Text style={styles.customerPhone}>
+                              Secondary: {customer.secondaryPhone}
+                            </Text>
+                            {customer.secondaryPhoneVerified && (
+                              <Icon
+                                name="verified"
+                                size={14}
+                                color="#4CAF50"
+                                style={styles.verifiedIconInline}
+                              />
+                            )}
+                          </View>
+                        )}
+                        {customer.homeAddress && (
+                          <Text style={styles.customerAddress} numberOfLines={1}>
+                            Home: {customer.homeAddress.address}
+                          </Text>
+                        )}
+                        {customer.officeAddress && (
+                          <Text style={styles.customerAddress} numberOfLines={1}>
+                            Office: {customer.officeAddress.address}
+                          </Text>
+                        )}
+                        {!customer.homeAddress && !customer.officeAddress && customer.savedAddresses && customer.savedAddresses.length > 0 && (
+                          <Text style={styles.customerAddress} numberOfLines={1}>
+                            {customer.savedAddresses[0].address}
+                          </Text>
+                        )}
+                      </>
+                    )}
+
+                    {/* Expanded View - Show all details */}
+                    {isExpanded && (
+                      <>
+                        {customer.email && (
+                          <View style={styles.detailRow}>
+                            <Icon name="email" size={16} color="#8E8E93" />
+                            <Text style={styles.detailText}>{customer.email}</Text>
+                          </View>
+                        )}
+                        {customer.phone && (
+                          <View style={styles.detailRow}>
+                            <Icon name="phone" size={16} color="#8E8E93" />
+                            <Text style={styles.detailText}>{customer.phone}</Text>
+                            <Icon
+                              name={customer.phoneVerified ? "check-circle" : "cancel"}
+                              size={16}
+                              color={customer.phoneVerified ? "#4CAF50" : "#FF3B30"}
+                              style={styles.verifiedIconInline}
+                            />
+                          </View>
+                        )}
+                        {customer.secondaryPhone && (
+                          <View style={styles.detailRow}>
+                            <Icon name="phone" size={16} color="#8E8E93" />
+                            <Text style={styles.detailText}>
+                              Secondary: {customer.secondaryPhone}
+                            </Text>
+                            {customer.secondaryPhoneVerified && (
+                              <Icon
+                                name="verified"
+                                size={14}
+                                color="#4CAF50"
+                                style={styles.verifiedIconInline}
+                              />
+                            )}
+                          </View>
+                        )}
+                        {customer.homeAddress && (
+                          <View style={styles.detailRow}>
+                            <Icon name="home" size={16} color="#8E8E93" />
+                            <Text style={styles.detailText}>
+                              Home: {customer.homeAddress.address}
+                              {customer.homeAddress.city && `, ${customer.homeAddress.city}`}
+                              {customer.homeAddress.pincode && ` - ${customer.homeAddress.pincode}`}
+                            </Text>
+                          </View>
+                        )}
+                        {customer.officeAddress && (
+                          <View style={styles.detailRow}>
+                            <Icon name="business" size={16} color="#8E8E93" />
+                            <Text style={styles.detailText}>
+                              Office: {customer.officeAddress.address}
+                              {customer.officeAddress.city && `, ${customer.officeAddress.city}`}
+                              {customer.officeAddress.pincode && ` - ${customer.officeAddress.pincode}`}
+                            </Text>
+                          </View>
+                        )}
+                        {customer.savedAddresses && customer.savedAddresses.length > 0 && (
+                          <View style={styles.detailRow}>
+                            <Icon name="location-on" size={16} color="#8E8E93" />
+                            <Text style={styles.detailText}>
+                              {customer.savedAddresses.length} saved address(es)
+                            </Text>
+                          </View>
+                        )}
+                        {customer.createdAt && (
+                          <View style={styles.detailRow}>
+                            <Icon name="calendar-today" size={16} color="#8E8E93" />
+                            <Text style={styles.detailText}>
+                              Joined: {customer.createdAt.toLocaleDateString()}
+                            </Text>
+                          </View>
+                        )}
+
+                        {/* Job Cards Section */}
+                        <View style={styles.jobCardsSection}>
+                          <TouchableOpacity
+                            style={styles.jobCardsHeader}
+                            onPress={() => setExpandedJobCards(
+                              expandedJobCards === customer.id ? null : customer.id
+                            )}
+                            activeOpacity={0.7}>
+                            <View style={styles.jobCardsHeaderLeft}>
+                              <Icon name="work" size={18} color="#FF9500" />
+                              <Text style={styles.jobCardsTitle}>
+                                Job Cards ({customerJobCards[customer.id]?.length || 0})
+                              </Text>
+                            </View>
+                            <Icon
+                              name={expandedJobCards === customer.id ? "expand-less" : "expand-more"}
+                              size={24}
+                              color="#8E8E93"
+                            />
+                          </TouchableOpacity>
+
+                          {expandedJobCards === customer.id && (
+                            <View style={styles.jobCardsList}>
+                              {loadingJobCards[customer.id] ? (
+                                <View style={styles.jobCardsLoading}>
+                                  <ActivityIndicator size="small" color="#FF9500" />
+                                  <Text style={styles.jobCardsLoadingText}>Loading job cards...</Text>
+                                </View>
+                              ) : customerJobCards[customer.id]?.length > 0 ? (
+                                customerJobCards[customer.id].map(jobCard => {
+                                  const statusColor = getStatusColor(jobCard.status);
+                                  const statusIcon = getStatusIcon(jobCard.status);
+                                  return (
+                                    <View key={jobCard.id} style={styles.jobCardItem}>
+                                      <View style={styles.jobCardHeader}>
+                                        <View style={styles.jobCardHeaderLeft}>
+                                          <Text style={styles.jobCardServiceType}>
+                                            {jobCard.serviceType}
+                                          </Text>
+                                          <View style={[styles.jobCardStatusBadge, {backgroundColor: statusColor + '20'}]}>
+                                            <Icon name={statusIcon} size={14} color={statusColor} />
+                                            <Text style={[styles.jobCardStatusText, {color: statusColor}]}>
+                                              {jobCard.status === 'in-progress' ? 'In Progress' : jobCard.status.charAt(0).toUpperCase() + jobCard.status.slice(1)}
+                                            </Text>
+                                          </View>
+                                        </View>
+                                      </View>
+                                      {jobCard.providerName && (
+                                        <Text style={styles.jobCardDetail}>
+                                          Provider: {jobCard.providerName}
+                                        </Text>
+                                      )}
+                                      {jobCard.problem && (
+                                        <Text style={styles.jobCardDetail}>
+                                          Problem: {jobCard.problem}
+                                        </Text>
+                                      )}
+                                      {jobCard.customerAddress && (
+                                        <Text style={styles.jobCardDetail}>
+                                          Address: {jobCard.customerAddress.address}
+                                          {jobCard.customerAddress.city && `, ${jobCard.customerAddress.city}`}
+                                          {jobCard.customerAddress.pincode && ` - ${jobCard.customerAddress.pincode}`}
+                                        </Text>
+                                      )}
+                                      {jobCard.createdAt && (
+                                        <Text style={styles.jobCardDate}>
+                                          Created: {jobCard.createdAt.toLocaleDateString()} {jobCard.createdAt.toLocaleTimeString()}
+                                        </Text>
+                                      )}
+                                    </View>
+                                  );
+                                })
+                              ) : (
+                                <Text style={styles.jobCardsEmpty}>No job cards found</Text>
+                              )}
+                            </View>
+                          )}
+                        </View>
+                      </>
+                    )}
+                  </View>
                 </View>
-              </View>
-            </View>
-          ))
+              </TouchableOpacity>
+            );
+          })
         )}
       </ScrollView>
     </View>
@@ -255,38 +559,144 @@ const styles = StyleSheet.create({
   customerDetails: {
     flex: 1,
   },
+  customerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   customerName: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#1a1a1a',
-    marginBottom: 4,
+    flex: 1,
   },
   customerEmail: {
     fontSize: 14,
     color: '#8E8E93',
-    marginBottom: 2,
+    marginBottom: 4,
+  },
+  phoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
   },
   customerPhone: {
     fontSize: 14,
     color: '#8E8E93',
-    marginBottom: 2,
+    marginRight: 6,
   },
-  verifiedIcon: {
-    marginLeft: 5,
+  customerAddress: {
+    fontSize: 14,
+    color: '#8E8E93',
+    marginBottom: 4,
   },
-  statusContainer: {
+  verifiedIconInline: {
+    marginLeft: 6,
+  },
+  detailRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 8,
+    paddingLeft: 4,
+  },
+  detailText: {
+    fontSize: 14,
+    color: '#8E8E93',
+    marginLeft: 8,
+    flex: 1,
+  },
+  jobCardsSection: {
+    marginTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+    paddingTop: 12,
+  },
+  jobCardsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  jobCardsHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  jobCardsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1a1a1a',
+    marginLeft: 8,
+  },
+  jobCardsList: {
     marginTop: 8,
   },
-  statusLabel: {
+  jobCardsLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    justifyContent: 'center',
+  },
+  jobCardsLoadingText: {
+    marginLeft: 8,
     fontSize: 14,
     color: '#8E8E93',
   },
-  createdAt: {
+  jobCardsEmpty: {
+    padding: 12,
+    fontSize: 14,
+    color: '#8E8E93',
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  jobCardItem: {
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#FF9500',
+  },
+  jobCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  jobCardHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    flexWrap: 'wrap',
+  },
+  jobCardServiceType: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1a1a1a',
+    marginRight: 8,
+  },
+  jobCardStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  jobCardStatusText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  jobCardDetail: {
+    fontSize: 13,
+    color: '#8E8E93',
+    marginBottom: 4,
+  },
+  jobCardDate: {
     fontSize: 12,
     color: '#8E8E93',
-    marginTop: 8,
+    marginTop: 4,
+    fontStyle: 'italic',
   },
 });
 
