@@ -9,8 +9,6 @@ import type {
   TimeSlot,
   User,
 } from '../types/consultation';
-// Use OneSignal instead of Firebase Cloud Functions (free alternative)
-import OneSignalService from './oneSignalService';
 import NotificationService from './notificationService';
 // Google Meet link generation removed - doctors will add links manually
 // import {generateGoogleMeetLink, sendConsultationEmails} from './emailService';
@@ -301,10 +299,6 @@ export const bookConsultation = async (
     try {
       // Validate required fields before sending notifications
       if (returnConsultation.patientId && returnConsultation.doctorId) {
-        // Send push notifications via OneSignal (free alternative to Cloud Functions)
-        await OneSignalService.notifyPatientBooking(returnConsultation);
-        await OneSignalService.notifyDoctorBooking(returnConsultation);
-        
         // Schedule local reminder
         NotificationService.scheduleConsultationReminder(returnConsultation);
         
