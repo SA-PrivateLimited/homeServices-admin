@@ -15,10 +15,13 @@ const COLLECTIONS = {
 };
 
 // Configure Google Sign-In
+// webClientId must match the Web client (type 3) OAuth 2.0 client ID from Firebase Console
 GoogleSignin.configure({
-  webClientId: '136199853280-v1ea3pa1fr44qv5hihp6ougjcrib3dj5.apps.googleusercontent.com',
+  webClientId: '425944993130-342d2o2ao3is7ljq3bi52m6q55279bh9.apps.googleusercontent.com', // Web client ID from google-services.json
   offlineAccess: true,
   forceCodeForRefreshToken: true,
+  // Optional: Add scopes if needed
+  scopes: ['profile', 'email'],
 });
 
 /**

@@ -23,6 +23,7 @@ interface Provider {
   verified?: boolean;
   approved?: boolean;
   rating?: number;
+  totalReviews?: number;
   address?: {
     type: 'home' | 'office';
     address: string;
@@ -56,11 +57,42 @@ export default function AdminProvidersListScreen({navigation}: any) {
         const providersRef = firestore().collection('providers');
         
         unsubscribe = providersRef.onSnapshot(
-          snapshot => {
-            const providersList = snapshot.docs.map(doc => ({
-              id: doc.id,
-              ...doc.data(),
-            })) as Provider[];
+          async snapshot => {
+            const providersList = await Promise.all(
+              snapshot.docs.map(async doc => {
+                const providerData = {
+                  id: doc.id,
+                  ...doc.data(),
+                } as Provider;
+                
+                // Fetch reviews count and calculate average rating
+                try {
+                  const reviewsSnapshot = await firestore()
+                    .collection('reviews')
+                    .where('providerId', '==', doc.id)
+                    .get();
+                  
+                  const reviews = reviewsSnapshot.docs.map(reviewDoc => ({
+                    rating: reviewDoc.data().rating || 0,
+                  }));
+                  
+                  if (reviews.length > 0) {
+                    const totalRating = reviews.reduce((sum, r) => sum + r.rating, 0);
+                    providerData.rating = totalRating / reviews.length;
+                    providerData.totalReviews = reviews.length;
+                  } else {
+                    providerData.rating = providerData.rating || 0;
+                    providerData.totalReviews = 0;
+                  }
+                } catch (reviewError) {
+                  console.warn(`Failed to fetch reviews for provider ${doc.id}:`, reviewError);
+                  providerData.rating = providerData.rating || 0;
+                  providerData.totalReviews = 0;
+                }
+                
+                return providerData;
+              })
+            );
             setProviders(providersList);
             setLoading(false);
             setError(null);
@@ -196,12 +228,15 @@ export default function AdminProvidersListScreen({navigation}: any) {
               </Text>
             </View>
           )}
-          {rating > 0 && (
-            <View style={styles.ratingContainer}>
-              <Icon name="star" size={16} color="#FFD700" />
-              <Text style={styles.rating}>{rating.toFixed(1)}</Text>
-            </View>
-          )}
+          <View style={styles.ratingContainer}>
+            <Icon name="star" size={16} color={rating > 0 ? "#FFD700" : "#ccc"} />
+            <Text style={[styles.rating, rating === 0 && styles.ratingEmpty]}>
+              {rating > 0 ? rating.toFixed(1) : 'No ratings'}
+            </Text>
+            {item.totalReviews !== undefined && item.totalReviews > 0 && (
+              <Text style={styles.reviewCount}>({item.totalReviews} {item.totalReviews === 1 ? 'review' : 'reviews'})</Text>
+            )}
+          </View>
         </View>
         <View style={styles.actions}>
           <TouchableOpacity
@@ -237,11 +272,42 @@ export default function AdminProvidersListScreen({navigation}: any) {
         const unsubscribe = firestore()
           .collection('providers')
           .onSnapshot(
-            snapshot => {
-              const providersList = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-              })) as Provider[];
+            async snapshot => {
+              const providersList = await Promise.all(
+                snapshot.docs.map(async doc => {
+                  const providerData = {
+                    id: doc.id,
+                    ...doc.data(),
+                  } as Provider;
+                  
+                  // Fetch reviews count and calculate average rating
+                  try {
+                    const reviewsSnapshot = await firestore()
+                      .collection('reviews')
+                      .where('providerId', '==', doc.id)
+                      .get();
+                    
+                    const reviews = reviewsSnapshot.docs.map(reviewDoc => ({
+                      rating: reviewDoc.data().rating || 0,
+                    }));
+                    
+                    if (reviews.length > 0) {
+                      const totalRating = reviews.reduce((sum, r) => sum + r.rating, 0);
+                      providerData.rating = totalRating / reviews.length;
+                      providerData.totalReviews = reviews.length;
+                    } else {
+                      providerData.rating = providerData.rating || 0;
+                      providerData.totalReviews = 0;
+                    }
+                  } catch (reviewError) {
+                    console.warn(`Failed to fetch reviews for provider ${doc.id}:`, reviewError);
+                    providerData.rating = providerData.rating || 0;
+                    providerData.totalReviews = 0;
+                  }
+                  
+                  return providerData;
+                })
+              );
               setProviders(providersList);
               setLoading(false);
               setError(null);
@@ -387,6 +453,16 @@ const styles = StyleSheet.create({
     marginLeft: 5,
     fontSize: 14,
     fontWeight: 'bold',
+    color: '#333',
+  },
+  ratingEmpty: {
+    color: '#999',
+    fontWeight: 'normal',
+  },
+  reviewCount: {
+    marginLeft: 5,
+    fontSize: 12,
+    color: '#666',
   },
   actions: {
     justifyContent: 'space-around',

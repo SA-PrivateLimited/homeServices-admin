@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   ScrollView,
   TextInput,
+  Modal,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import firestore from '@react-native-firebase/firestore';
@@ -40,6 +41,8 @@ export default function AdminJobCardsListScreen({navigation}: any) {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | JobCard['status']>('all');
+  const [selectedJobCard, setSelectedJobCard] = useState<JobCard | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
   const {currentUser} = useStore();
 
   useEffect(() => {
@@ -129,8 +132,8 @@ export default function AdminJobCardsListScreen({navigation}: any) {
       <TouchableOpacity
         style={styles.jobCard}
         onPress={() => {
-          // Navigate to job card details if needed
-          Alert.alert('Job Card Details', `Customer: ${item.customerName}\nProvider: ${item.providerName}\nService: ${item.serviceType}\nStatus: ${item.status}`);
+          setSelectedJobCard(item);
+          setModalVisible(true);
         }}>
         <View style={styles.jobCardHeader}>
           <View style={styles.jobCardInfo}>
@@ -270,6 +273,114 @@ export default function AdminJobCardsListScreen({navigation}: any) {
           }}
         />
       )}
+
+      {/* Job Card Details Modal */}
+      <Modal
+        visible={modalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Job Card Details</Text>
+              <TouchableOpacity
+                onPress={() => setModalVisible(false)}
+                style={styles.closeButton}>
+                <Icon name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+
+            {selectedJobCard && (
+              <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+                <View style={styles.detailSection}>
+                  <View style={styles.detailItem}>
+                    <Text style={styles.detailLabel}>Customer:</Text>
+                    <Text style={styles.detailValue}>{selectedJobCard.customerName}</Text>
+                  </View>
+
+                  <View style={styles.detailItem}>
+                    <Text style={styles.detailLabel}>Provider:</Text>
+                    <Text style={styles.detailValue}>{selectedJobCard.providerName}</Text>
+                  </View>
+
+                  <View style={styles.detailItem}>
+                    <Text style={styles.detailLabel}>Service:</Text>
+                    <Text style={styles.detailValue}>{selectedJobCard.serviceType}</Text>
+                  </View>
+
+                  <View style={styles.detailItem}>
+                    <Text style={styles.detailLabel}>Status:</Text>
+                    <View style={[styles.statusBadgeModal, {backgroundColor: getStatusColor(selectedJobCard.status) + '20'}]}>
+                      <Icon name={getStatusIcon(selectedJobCard.status)} size={16} color={getStatusColor(selectedJobCard.status)} />
+                      <Text style={[styles.statusTextModal, {color: getStatusColor(selectedJobCard.status)}]}>
+                        {selectedJobCard.status === 'in-progress' ? 'In Progress' : selectedJobCard.status.charAt(0).toUpperCase() + selectedJobCard.status.slice(1)}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {selectedJobCard.customerPhone && (
+                    <View style={styles.detailItem}>
+                      <Text style={styles.detailLabel}>Phone:</Text>
+                      <Text style={styles.detailValue}>{selectedJobCard.customerPhone}</Text>
+                    </View>
+                  )}
+
+                  {selectedJobCard.problem && (
+                    <View style={styles.detailItem}>
+                      <Text style={styles.detailLabel}>Problem:</Text>
+                      <Text style={styles.detailValue}>{selectedJobCard.problem}</Text>
+                    </View>
+                  )}
+
+                  {selectedJobCard.customerAddress && (
+                    <View style={styles.detailItem}>
+                      <Text style={styles.detailLabel}>Address:</Text>
+                      <Text style={styles.detailValue}>
+                        {selectedJobCard.customerAddress.address}
+                        {selectedJobCard.customerAddress.city && `, ${selectedJobCard.customerAddress.city}`}
+                        {selectedJobCard.customerAddress.state && `, ${selectedJobCard.customerAddress.state}`}
+                        {selectedJobCard.customerAddress.pincode && ` - ${selectedJobCard.customerAddress.pincode}`}
+                      </Text>
+                    </View>
+                  )}
+
+                  <View style={styles.detailItem}>
+                    <Text style={styles.detailLabel}>Created:</Text>
+                    <Text style={styles.detailValue}>
+                      {selectedJobCard.createdAt.toLocaleDateString()} {selectedJobCard.createdAt.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
+                    </Text>
+                  </View>
+
+                  {selectedJobCard.scheduledTime && (
+                    <View style={styles.detailItem}>
+                      <Text style={styles.detailLabel}>Scheduled:</Text>
+                      <Text style={styles.detailValue}>
+                        {selectedJobCard.scheduledTime.toLocaleDateString()} {selectedJobCard.scheduledTime.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
+                      </Text>
+                    </View>
+                  )}
+
+                  <View style={styles.detailItem}>
+                    <Text style={styles.detailLabel}>Last Updated:</Text>
+                    <Text style={styles.detailValue}>
+                      {selectedJobCard.updatedAt.toLocaleDateString()} {selectedJobCard.updatedAt.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
+                    </Text>
+                  </View>
+                </View>
+              </ScrollView>
+            )}
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={styles.okButton}
+                onPress={() => setModalVisible(false)}>
+                <Text style={styles.okButtonText}>OK</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -443,6 +554,94 @@ const styles = StyleSheet.create({
     marginTop: 15,
     fontSize: 16,
     color: '#8E8E93',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    width: '100%',
+    maxWidth: 500,
+    maxHeight: '80%',
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 4},
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1a1a1a',
+  },
+  closeButton: {
+    padding: 4,
+  },
+  modalBody: {
+    maxHeight: 400,
+    padding: 20,
+  },
+  detailSection: {
+    gap: 16,
+  },
+  detailItem: {
+    marginBottom: 12,
+  },
+  detailLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+    marginBottom: 4,
+  },
+  detailValue: {
+    fontSize: 16,
+    color: '#1a1a1a',
+    lineHeight: 22,
+  },
+  statusBadgeModal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    gap: 6,
+  },
+  statusTextModal: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  modalFooter: {
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+    alignItems: 'flex-end',
+  },
+  okButton: {
+    backgroundColor: '#FF9500',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  okButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

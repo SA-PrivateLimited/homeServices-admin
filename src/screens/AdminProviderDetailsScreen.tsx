@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useEffect} from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import firestore from '@react-native-firebase/firestore';
 
 interface Provider {
   id: string;
@@ -22,6 +23,8 @@ interface Provider {
   profileImage?: string;
   verified?: boolean;
   approved?: boolean;
+  rating?: number;
+  totalReviews?: number;
   address?: {
     type: 'home' | 'office';
     address: string;
@@ -35,7 +38,22 @@ interface Provider {
     idProof?: string;
     addressProof?: string;
     certificate?: string;
+    idProofVerified?: boolean;
+    addressProofVerified?: boolean;
+    certificateVerified?: boolean;
   };
+}
+
+interface Review {
+  id: string;
+  customerId: string;
+  customerName: string;
+  providerId: string;
+  providerName: string;
+  serviceType: string;
+  rating: number;
+  comment?: string;
+  createdAt: Date;
 }
 
 interface AdminProviderDetailsScreenProps {
@@ -51,11 +69,101 @@ export default function AdminProviderDetailsScreen({
   route,
   navigation,
 }: AdminProviderDetailsScreenProps) {
-  const {provider} = route.params;
+  const {provider: initialProvider} = route.params;
+  const [provider, setProvider] = useState<Provider>(initialProvider);
   const [imageModalVisible, setImageModalVisible] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
+  const [verifyingDoc, setVerifyingDoc] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Listen for provider updates
+    const unsubscribe = firestore()
+      .collection('providers')
+      .doc(provider.id)
+      .onSnapshot(
+        doc => {
+          if (doc.exists) {
+            setProvider({
+              id: doc.id,
+              ...doc.data(),
+            } as Provider);
+          }
+        },
+        error => {
+          console.error('Error listening to provider updates:', error);
+        },
+      );
+
+    return () => unsubscribe();
+  }, [provider.id]);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [loadingReviews, setLoadingReviews] = useState(true);
+  const [averageRating, setAverageRating] = useState(0);
+  const [totalReviews, setTotalReviews] = useState(0);
+
+  useEffect(() => {
+    loadReviews();
+  }, [provider.id]);
+
+  const loadReviews = async () => {
+    try {
+      setLoadingReviews(true);
+      const snapshot = await firestore()
+        .collection('reviews')
+        .where('providerId', '==', provider.id)
+        .get();
+
+      const reviewsList = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        createdAt: doc.data().createdAt?.toDate() || new Date(),
+      })) as Review[];
+
+      // Sort by createdAt descending
+      reviewsList.sort((a, b) => {
+        const dateA = a.createdAt.getTime();
+        const dateB = b.createdAt.getTime();
+        return dateB - dateA;
+      });
+
+      setReviews(reviewsList);
+      setTotalReviews(reviewsList.length);
+
+      // Calculate average rating
+      if (reviewsList.length > 0) {
+        const totalRating = reviewsList.reduce((sum, r) => sum + r.rating, 0);
+        setAverageRating(totalRating / reviewsList.length);
+      } else {
+        setAverageRating(provider.rating || 0);
+      }
+    } catch (error) {
+      console.error('Error loading reviews:', error);
+    } finally {
+      setLoadingReviews(false);
+    }
+  };
+
+  const renderStars = (rating: number) => {
+    const stars = [];
+    const roundedRating = Math.round(rating * 2) / 2; // Round to nearest 0.5
+    const fullStars = Math.floor(roundedRating);
+    const hasHalfStar = roundedRating % 1 >= 0.5;
+
+    for (let i = 0; i < fullStars; i++) {
+      stars.push(<Icon key={i} name="star" size={16} color="#FFD700" />);
+    }
+    if (hasHalfStar) {
+      // Use star with reduced opacity for half star effect
+      stars.push(<Icon key="half" name="star" size={16} color="#FFD700" style={{opacity: 0.5}} />);
+    }
+    const emptyStars = 5 - Math.ceil(roundedRating);
+    for (let i = 0; i < emptyStars; i++) {
+      stars.push(<Icon key={`empty-${i}`} name="star-border" size={16} color="#ccc" />);
+    }
+    return stars;
+  };
 
   const openImageModal = (imageUrl: string) => {
     setSelectedImage(imageUrl);
@@ -87,6 +195,31 @@ export default function AdminProviderDetailsScreen({
       provider.documents?.addressProof ||
       provider.documents?.certificate
     );
+  };
+
+  const verifyDocument = async (docType: 'idProof' | 'addressProof' | 'certificate') => {
+    try {
+      setVerifyingDoc(docType);
+      const isCurrentlyVerified = provider.documents?.[`${docType}Verified` as keyof typeof provider.documents] as boolean;
+      const newVerifiedStatus = !isCurrentlyVerified;
+
+      await firestore()
+        .collection('providers')
+        .doc(provider.id)
+        .update({
+          [`documents.${docType}Verified`]: newVerifiedStatus,
+          updatedAt: firestore.FieldValue.serverTimestamp(),
+        });
+
+      Alert.alert(
+        'Success',
+        `${docType === 'idProof' ? 'ID Proof' : docType === 'addressProof' ? 'Address Proof' : 'Certificate'} ${newVerifiedStatus ? 'verified' : 'verification removed'} successfully`,
+      );
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to update document verification status');
+    } finally {
+      setVerifyingDoc(null);
+    }
   };
 
   return (
@@ -122,6 +255,16 @@ export default function AdminProviderDetailsScreen({
           {provider.experience && (
             <Text style={styles.experience}>{provider.experience} years experience</Text>
           )}
+          {averageRating > 0 && (
+            <View style={styles.ratingHeader}>
+              <View style={styles.ratingStars}>
+                {renderStars(averageRating)}
+              </View>
+              <Text style={styles.ratingText}>
+                {averageRating.toFixed(1)} ({totalReviews} {totalReviews === 1 ? 'review' : 'reviews'})
+              </Text>
+            </View>
+          )}
         </View>
       </View>
 
@@ -152,6 +295,64 @@ export default function AdminProviderDetailsScreen({
         </View>
       </View>
 
+      {/* Ratings & Reviews Section */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Ratings & Reviews</Text>
+        {loadingReviews ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color="#007AFF" />
+            <Text style={styles.loadingText}>Loading reviews...</Text>
+          </View>
+        ) : reviews.length === 0 ? (
+          <View style={styles.noReviewsContainer}>
+            <Icon name="star-border" size={48} color="#ccc" />
+            <Text style={styles.noReviewsText}>No reviews yet</Text>
+          </View>
+        ) : (
+          <>
+            <View style={styles.ratingSummary}>
+              <View style={styles.ratingSummaryLeft}>
+                <Text style={styles.ratingSummaryNumber}>{averageRating.toFixed(1)}</Text>
+                <View style={styles.ratingSummaryStars}>
+                  {renderStars(averageRating)}
+                </View>
+                <Text style={styles.ratingSummaryCount}>
+                  {totalReviews} {totalReviews === 1 ? 'review' : 'reviews'}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.reviewsList}>
+              {reviews.map(review => (
+                <View key={review.id} style={styles.reviewCard}>
+                  <View style={styles.reviewHeader}>
+                    <View style={styles.reviewHeaderLeft}>
+                      <View style={styles.reviewAvatar}>
+                        <Text style={styles.reviewAvatarText}>
+                          {review.customerName.charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                      <View>
+                        <Text style={styles.reviewCustomerName}>{review.customerName}</Text>
+                        <Text style={styles.reviewDate}>
+                          {review.createdAt.toLocaleDateString()} {review.createdAt.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.reviewRating}>
+                      {renderStars(review.rating)}
+                    </View>
+                  </View>
+                  {review.comment && (
+                    <Text style={styles.reviewComment}>{review.comment}</Text>
+                  )}
+                  <Text style={styles.reviewServiceType}>{review.serviceType}</Text>
+                </View>
+              ))}
+            </View>
+          </>
+        )}
+      </View>
+
       {/* Documents Section */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Verification Documents</Text>
@@ -175,8 +376,16 @@ export default function AdminProviderDetailsScreen({
                 }}
                 disabled={imageErrors.has('idProof')}>
                 <View style={styles.documentHeader}>
-                  <Icon name="badge" size={24} color="#007AFF" />
-                  <Text style={styles.documentTitle}>ID Proof</Text>
+                  <View style={styles.documentHeaderLeft}>
+                    <Icon name="badge" size={24} color="#007AFF" />
+                    <Text style={styles.documentTitle}>ID Proof</Text>
+                  </View>
+                  {provider.documents?.idProofVerified && (
+                    <View style={styles.verifiedBadge}>
+                      <Icon name="verified" size={16} color="#4CAF50" />
+                      <Text style={styles.verifiedBadgeText}>Verified</Text>
+                    </View>
+                  )}
                 </View>
                 {!imageErrors.has('idProof') ? (
                   <Image
@@ -197,9 +406,36 @@ export default function AdminProviderDetailsScreen({
                   <Text style={[styles.viewText, imageErrors.has('idProof') && styles.viewTextDisabled]}>
                     {imageErrors.has('idProof') ? 'Image unavailable' : 'Tap to view'}
                   </Text>
-                  {!imageErrors.has('idProof') && (
-                    <Icon name="chevron-right" size={20} color="#007AFF" />
-                  )}
+                  <View style={styles.documentFooterRight}>
+                    {!imageErrors.has('idProof') && (
+                      <>
+                        <TouchableOpacity
+                          style={styles.verifyButton}
+                          onPress={() => verifyDocument('idProof')}
+                          disabled={verifyingDoc === 'idProof'}>
+                          {verifyingDoc === 'idProof' ? (
+                            <ActivityIndicator size="small" color="#007AFF" />
+                          ) : (
+                            <>
+                              <Icon
+                                name={provider.documents?.idProofVerified ? "verified" : "check-circle-outline"}
+                                size={18}
+                                color={provider.documents?.idProofVerified ? "#4CAF50" : "#007AFF"}
+                              />
+                              <Text
+                                style={[
+                                  styles.verifyButtonText,
+                                  provider.documents?.idProofVerified && styles.verifyButtonTextVerified,
+                                ]}>
+                                {provider.documents?.idProofVerified ? 'Verified' : 'Verify'}
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                        <Icon name="chevron-right" size={20} color="#007AFF" />
+                      </>
+                    )}
+                  </View>
                 </View>
               </TouchableOpacity>
             )}
@@ -217,8 +453,16 @@ export default function AdminProviderDetailsScreen({
                 }}
                 disabled={imageErrors.has('addressProof')}>
                 <View style={styles.documentHeader}>
-                  <Icon name="home" size={24} color="#4CAF50" />
-                  <Text style={styles.documentTitle}>Address Proof</Text>
+                  <View style={styles.documentHeaderLeft}>
+                    <Icon name="home" size={24} color="#4CAF50" />
+                    <Text style={styles.documentTitle}>Address Proof</Text>
+                  </View>
+                  {provider.documents?.addressProofVerified && (
+                    <View style={styles.verifiedBadge}>
+                      <Icon name="verified" size={16} color="#4CAF50" />
+                      <Text style={styles.verifiedBadgeText}>Verified</Text>
+                    </View>
+                  )}
                 </View>
                 {!imageErrors.has('addressProof') ? (
                   <Image
@@ -239,9 +483,36 @@ export default function AdminProviderDetailsScreen({
                   <Text style={[styles.viewText, imageErrors.has('addressProof') && styles.viewTextDisabled]}>
                     {imageErrors.has('addressProof') ? 'Image unavailable' : 'Tap to view'}
                   </Text>
-                  {!imageErrors.has('addressProof') && (
-                    <Icon name="chevron-right" size={20} color="#4CAF50" />
-                  )}
+                  <View style={styles.documentFooterRight}>
+                    {!imageErrors.has('addressProof') && (
+                      <>
+                        <TouchableOpacity
+                          style={styles.verifyButton}
+                          onPress={() => verifyDocument('addressProof')}
+                          disabled={verifyingDoc === 'addressProof'}>
+                          {verifyingDoc === 'addressProof' ? (
+                            <ActivityIndicator size="small" color="#4CAF50" />
+                          ) : (
+                            <>
+                              <Icon
+                                name={provider.documents?.addressProofVerified ? "verified" : "check-circle-outline"}
+                                size={18}
+                                color={provider.documents?.addressProofVerified ? "#4CAF50" : "#4CAF50"}
+                              />
+                              <Text
+                                style={[
+                                  styles.verifyButtonText,
+                                  provider.documents?.addressProofVerified && styles.verifyButtonTextVerified,
+                                ]}>
+                                {provider.documents?.addressProofVerified ? 'Verified' : 'Verify'}
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                        <Icon name="chevron-right" size={20} color="#4CAF50" />
+                      </>
+                    )}
+                  </View>
                 </View>
               </TouchableOpacity>
             )}
@@ -259,8 +530,16 @@ export default function AdminProviderDetailsScreen({
                 }}
                 disabled={imageErrors.has('certificate')}>
                 <View style={styles.documentHeader}>
-                  <Icon name="school" size={24} color="#FF9500" />
-                  <Text style={styles.documentTitle}>Certificate</Text>
+                  <View style={styles.documentHeaderLeft}>
+                    <Icon name="school" size={24} color="#FF9500" />
+                    <Text style={styles.documentTitle}>Certificate</Text>
+                  </View>
+                  {provider.documents?.certificateVerified && (
+                    <View style={styles.verifiedBadge}>
+                      <Icon name="verified" size={16} color="#4CAF50" />
+                      <Text style={styles.verifiedBadgeText}>Verified</Text>
+                    </View>
+                  )}
                 </View>
                 {!imageErrors.has('certificate') ? (
                   <Image
@@ -281,9 +560,36 @@ export default function AdminProviderDetailsScreen({
                   <Text style={[styles.viewText, imageErrors.has('certificate') && styles.viewTextDisabled]}>
                     {imageErrors.has('certificate') ? 'Image unavailable' : 'Tap to view'}
                   </Text>
-                  {!imageErrors.has('certificate') && (
-                    <Icon name="chevron-right" size={20} color="#FF9500" />
-                  )}
+                  <View style={styles.documentFooterRight}>
+                    {!imageErrors.has('certificate') && (
+                      <>
+                        <TouchableOpacity
+                          style={styles.verifyButton}
+                          onPress={() => verifyDocument('certificate')}
+                          disabled={verifyingDoc === 'certificate'}>
+                          {verifyingDoc === 'certificate' ? (
+                            <ActivityIndicator size="small" color="#FF9500" />
+                          ) : (
+                            <>
+                              <Icon
+                                name={provider.documents?.certificateVerified ? "verified" : "check-circle-outline"}
+                                size={18}
+                                color={provider.documents?.certificateVerified ? "#4CAF50" : "#FF9500"}
+                              />
+                              <Text
+                                style={[
+                                  styles.verifyButtonText,
+                                  provider.documents?.certificateVerified && styles.verifyButtonTextVerified,
+                                ]}>
+                                {provider.documents?.certificateVerified ? 'Verified' : 'Verify'}
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                        <Icon name="chevron-right" size={20} color="#FF9500" />
+                      </>
+                    )}
+                  </View>
                 </View>
               </TouchableOpacity>
             )}
@@ -432,13 +738,32 @@ const styles = StyleSheet.create({
   documentHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 12,
+  },
+  documentHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   documentTitle: {
     fontSize: 16,
     fontWeight: '600',
     marginLeft: 10,
     color: '#333',
+  },
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  verifiedBadgeText: {
+    fontSize: 12,
+    color: '#4CAF50',
+    fontWeight: '600',
   },
   documentThumbnail: {
     width: '100%',
@@ -451,6 +776,28 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: 10,
+  },
+  documentFooterRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  verifyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#f0f0f0',
+    gap: 6,
+  },
+  verifyButtonText: {
+    fontSize: 13,
+    color: '#007AFF',
+    fontWeight: '600',
+  },
+  verifyButtonTextVerified: {
+    color: '#4CAF50',
   },
   viewText: {
     fontSize: 14,
@@ -509,6 +856,125 @@ const styles = StyleSheet.create({
   },
   viewTextDisabled: {
     color: '#999',
+  },
+  ratingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    gap: 8,
+  },
+  ratingStars: {
+    flexDirection: 'row',
+    gap: 2,
+  },
+  ratingText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    padding: 20,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 14,
+    color: '#666',
+  },
+  noReviewsContainer: {
+    alignItems: 'center',
+    padding: 40,
+  },
+  noReviewsText: {
+    fontSize: 16,
+    color: '#999',
+    marginTop: 15,
+  },
+  ratingSummary: {
+    backgroundColor: '#f9f9f9',
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 20,
+  },
+  ratingSummaryLeft: {
+    alignItems: 'center',
+  },
+  ratingSummaryNumber: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 8,
+  },
+  ratingSummaryStars: {
+    flexDirection: 'row',
+    gap: 4,
+    marginBottom: 8,
+  },
+  ratingSummaryCount: {
+    fontSize: 14,
+    color: '#666',
+  },
+  reviewsList: {
+    gap: 15,
+  },
+  reviewCard: {
+    backgroundColor: '#f9f9f9',
+    borderRadius: 12,
+    padding: 15,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  reviewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 10,
+  },
+  reviewHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  reviewAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#007AFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  reviewAvatarText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  reviewCustomerName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 2,
+  },
+  reviewDate: {
+    fontSize: 12,
+    color: '#666',
+  },
+  reviewRating: {
+    flexDirection: 'row',
+    gap: 2,
+  },
+  reviewComment: {
+    fontSize: 14,
+    color: '#333',
+    lineHeight: 20,
+    marginBottom: 8,
+    marginLeft: 52,
+  },
+  reviewServiceType: {
+    fontSize: 12,
+    color: '#007AFF',
+    fontWeight: '500',
+    marginLeft: 52,
   },
 });
 
