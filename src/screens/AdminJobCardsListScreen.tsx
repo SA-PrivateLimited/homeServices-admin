@@ -5,7 +5,6 @@ import {
   FlatList,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   ActivityIndicator,
   ScrollView,
   TextInput,
@@ -13,6 +12,7 @@ import {
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import firestore from '@react-native-firebase/firestore';
 import {useStore} from '../store';
+import AlertModal from '../components/AlertModal';
 
 interface JobCard {
   id: string;
@@ -41,12 +41,37 @@ export default function AdminJobCardsListScreen({navigation}: any) {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | JobCard['status']>('all');
   const {currentUser} = useStore();
+  const [alertModal, setAlertModal] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    type: 'success' | 'error' | 'info' | 'warning';
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+    type: 'info',
+  });
+  const [jobCardDetailsModal, setJobCardDetailsModal] = useState<{
+    visible: boolean;
+    jobCard: JobCard | null;
+  }>({
+    visible: false,
+    jobCard: null,
+  });
 
   useEffect(() => {
     // SECURITY: Verify current user is admin
     if (currentUser?.role !== 'admin') {
-      Alert.alert('Access Denied', 'Only administrators can access this screen.');
-      navigation.goBack();
+      setAlertModal({
+        visible: true,
+        title: 'Access Denied',
+        message: 'Only administrators can access this screen.',
+        type: 'error',
+      });
+      setTimeout(() => {
+        navigation.goBack();
+      }, 2000);
       return;
     }
 
@@ -68,7 +93,12 @@ export default function AdminJobCardsListScreen({navigation}: any) {
         },
         error => {
           console.error('Error loading job cards:', error);
-          Alert.alert('Error', 'Failed to load job cards. Please try again.');
+          setAlertModal({
+            visible: true,
+            title: 'Error',
+            message: 'Failed to load job cards. Please try again.',
+            type: 'error',
+          });
           setLoading(false);
         },
       );
@@ -129,8 +159,10 @@ export default function AdminJobCardsListScreen({navigation}: any) {
       <TouchableOpacity
         style={styles.jobCard}
         onPress={() => {
-          // Navigate to job card details if needed
-          Alert.alert('Job Card Details', `Customer: ${item.customerName}\nProvider: ${item.providerName}\nService: ${item.serviceType}\nStatus: ${item.status}`);
+          setJobCardDetailsModal({
+            visible: true,
+            jobCard: item,
+          });
         }}>
         <View style={styles.jobCardHeader}>
           <View style={styles.jobCardInfo}>
@@ -268,6 +300,26 @@ export default function AdminJobCardsListScreen({navigation}: any) {
             setLoading(true);
             // The useEffect will reload
           }}
+        />
+      )}
+
+      {/* Alert Modal */}
+      <AlertModal
+        visible={alertModal.visible}
+        title={alertModal.title}
+        message={alertModal.message}
+        type={alertModal.type}
+        onClose={() => setAlertModal({...alertModal, visible: false})}
+      />
+
+      {/* Job Card Details Modal */}
+      {jobCardDetailsModal.jobCard && (
+        <AlertModal
+          visible={jobCardDetailsModal.visible}
+          title="Job Card Details"
+          message={`Customer: ${jobCardDetailsModal.jobCard.customerName}\nProvider: ${jobCardDetailsModal.jobCard.providerName}\nService: ${jobCardDetailsModal.jobCard.serviceType}\nStatus: ${jobCardDetailsModal.jobCard.status}${jobCardDetailsModal.jobCard.problem ? `\nProblem: ${jobCardDetailsModal.jobCard.problem}` : ''}`}
+          type="info"
+          onClose={() => setJobCardDetailsModal({visible: false, jobCard: null})}
         />
       )}
     </View>

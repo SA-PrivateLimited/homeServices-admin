@@ -5,6 +5,15 @@
 
 import firestore from '@react-native-firebase/firestore';
 
+export interface QuestionnaireQuestion {
+  id: string;
+  question: string;
+  type: 'text' | 'number' | 'select' | 'multiselect' | 'boolean';
+  options?: string[]; // For select and multiselect types
+  required: boolean;
+  placeholder?: string;
+}
+
 export interface ServiceCategory {
   id: string;
   name: string;
@@ -13,6 +22,8 @@ export interface ServiceCategory {
   description?: string;
   isActive: boolean;
   order: number; // Display order
+  questionnaire?: QuestionnaireQuestion[]; // Questions for this service category
+  requiresVehicle?: boolean; // For driver/transport services
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -74,13 +85,20 @@ export const updateServiceCategory = async (
   updates: Partial<Omit<ServiceCategory, 'id' | 'createdAt'>>,
 ): Promise<void> => {
   try {
+    const updateData: any = {
+      ...updates,
+      updatedAt: firestore.Timestamp.now(),
+    };
+
+    // If questionnaire is explicitly set to undefined or empty array, delete the field
+    if (updates.questionnaire === undefined || (Array.isArray(updates.questionnaire) && updates.questionnaire.length === 0)) {
+      updateData.questionnaire = firestore.FieldValue.delete();
+    }
+
     await firestore()
       .collection(COLLECTIONS.SERVICE_CATEGORIES)
       .doc(categoryId)
-      .update({
-        ...updates,
-        updatedAt: firestore.Timestamp.now(),
-      });
+      .update(updateData);
   } catch (error) {
     console.error('Error updating service category:', error);
     throw new Error('Failed to update service category');

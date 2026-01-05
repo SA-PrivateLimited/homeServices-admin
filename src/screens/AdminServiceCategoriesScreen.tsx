@@ -5,7 +5,6 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Alert,
   TextInput,
   Modal,
   ActivityIndicator,
@@ -77,11 +76,59 @@ export default function AdminServiceCategoriesScreen({navigation}: any) {
   const [description, setDescription] = useState('');
   const [isActive, setIsActive] = useState(true);
   const [order, setOrder] = useState('1');
+  const [requiresVehicle, setRequiresVehicle] = useState(false);
+  const [questionnaire, setQuestionnaire] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
+
+  // Track which modal to re-open after questionnaire editor
+  const [pendingModalReopen, setPendingModalReopen] = useState<'add' | 'edit' | null>(null);
+
+  // Custom alert modal state
+  const [alertModal, setAlertModal] = useState({
+    visible: false,
+    type: 'info' as 'info' | 'success' | 'error' | 'confirm',
+    title: '',
+    message: '',
+    buttons: [] as Array<{text: string; onPress?: () => void; style?: 'default' | 'cancel' | 'destructive'}>,
+  });
+
+  const showAlert = (
+    title: string,
+    message: string,
+    buttons?: Array<{text: string; onPress?: () => void; style?: 'default' | 'cancel' | 'destructive'}>,
+    type: 'info' | 'success' | 'error' | 'confirm' = 'info'
+  ) => {
+    setAlertModal({
+      visible: true,
+      type,
+      title,
+      message,
+      buttons: buttons || [{text: 'OK', onPress: () => setAlertModal(prev => ({...prev, visible: false}))}],
+    });
+  };
+
+  const hideAlert = () => {
+    setAlertModal(prev => ({...prev, visible: false}));
+  };
 
   useEffect(() => {
     loadCategories();
   }, []);
+
+  // Handle navigation focus to re-open modal after returning from questionnaire editor
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      if (pendingModalReopen === 'add') {
+        setShowAddModal(true);
+        setPendingModalReopen(null);
+      } else if (pendingModalReopen === 'edit') {
+        setShowEditModal(true);
+        setPendingModalReopen(null);
+      }
+    });
+
+    return unsubscribe;
+  }, [navigation, pendingModalReopen]);
 
   const loadCategories = async () => {
     try {
@@ -89,7 +136,7 @@ export default function AdminServiceCategoriesScreen({navigation}: any) {
       const data = await fetchAllServiceCategories();
       setCategories(data);
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to load service categories');
+      showAlert('Error', error.message || 'Failed to load service categories', undefined, 'error');
     } finally {
       setLoading(false);
     }
@@ -102,6 +149,8 @@ export default function AdminServiceCategoriesScreen({navigation}: any) {
     setDescription('');
     setIsActive(true);
     setOrder(String(categories.length + 1));
+    setRequiresVehicle(false);
+    setQuestionnaire([]);
     setShowAddModal(true);
   };
 
@@ -113,76 +162,100 @@ export default function AdminServiceCategoriesScreen({navigation}: any) {
     setDescription(category.description || '');
     setIsActive(category.isActive);
     setOrder(String(category.order));
+    setRequiresVehicle(category.requiresVehicle || false);
+    setQuestionnaire(category.questionnaire || []);
     setShowEditModal(true);
   };
 
   const handleDelete = (category: ServiceCategory) => {
-    Alert.alert(
+    showAlert(
       'Delete Category',
       `Are you sure you want to delete "${category.name}"? This action cannot be undone.`,
       [
-        {text: 'Cancel', style: 'cancel'},
+        {text: 'Cancel', style: 'cancel', onPress: hideAlert},
         {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
+            hideAlert();
             try {
               await deleteServiceCategory(category.id);
-              Alert.alert('Success', 'Category deleted successfully');
+              showAlert('Success', 'Category deleted successfully', undefined, 'success');
               loadCategories();
             } catch (error: any) {
-              Alert.alert('Error', error.message || 'Failed to delete category');
+              showAlert('Error', error.message || 'Failed to delete category', undefined, 'error');
             }
           },
         },
       ],
+      'confirm'
     );
   };
 
   const handleSave = async () => {
     if (!name.trim()) {
-      Alert.alert('Error', 'Please enter a category name');
+      showAlert('Error', 'Please enter a category name', undefined, 'error');
       return;
     }
 
     const orderNum = parseInt(order, 10);
     if (isNaN(orderNum) || orderNum < 1) {
-      Alert.alert('Error', 'Please enter a valid order number (1 or higher)');
+      showAlert('Error', 'Please enter a valid order number (1 or higher)', undefined, 'error');
       return;
     }
 
     try {
       setSaving(true);
-      const categoryData = {
+      const categoryData: any = {
         name: name.trim(),
         icon,
         color,
         description: description.trim() || undefined,
         isActive,
         order: orderNum,
+        requiresVehicle,
       };
+
+      // Only include questionnaire if it has questions, otherwise it will be deleted
+      if (questionnaire.length > 0) {
+        categoryData.questionnaire = questionnaire;
+      } else {
+        // Explicitly set to undefined so the service can delete the field
+        categoryData.questionnaire = undefined;
+      }
 
       if (showAddModal) {
         await addServiceCategory(categoryData);
-        Alert.alert('Success', 'Category added successfully');
+        showAlert('Success', 'Category added successfully', undefined, 'success');
         setShowAddModal(false);
       } else if (editingCategory) {
         await updateServiceCategory(editingCategory.id, categoryData);
-        Alert.alert('Success', 'Category updated successfully');
+        showAlert('Success', 'Category updated successfully', undefined, 'success');
         setShowEditModal(false);
         setEditingCategory(null);
       }
 
       loadCategories();
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to save category');
+      showAlert('Error', error.message || 'Failed to save category', undefined, 'error');
     } finally {
       setSaving(false);
     }
   };
 
-  const renderCategory = ({item}: {item: ServiceCategory}) => (
-    <View style={[styles.categoryCard, {backgroundColor: theme.card}]}>
+  const renderCategory = ({item}: {item: ServiceCategory}) => {
+    // Convert Date objects to ISO strings for navigation (fixes serialization warning)
+    const serializableCategory = {
+      ...item,
+      createdAt: item.createdAt ? item.createdAt.toISOString() : undefined,
+      updatedAt: item.updatedAt ? item.updatedAt.toISOString() : undefined,
+    };
+    
+    return (
+      <TouchableOpacity
+        style={[styles.categoryCard, {backgroundColor: theme.card}]}
+        onPress={() => navigation.navigate('AdminServiceCategoryDetails', {category: serializableCategory})}
+        activeOpacity={0.7}>
       <View style={styles.categoryHeader}>
         <View style={[styles.iconContainer, {backgroundColor: item.color + '20'}]}>
           <Icon name={item.icon} size={32} color={item.color} />
@@ -195,21 +268,39 @@ export default function AdminServiceCategoriesScreen({navigation}: any) {
             </Text>
           )}
           <View style={styles.categoryMeta}>
-            <Text style={[styles.metaText, {color: theme.textSecondary}]}>
-              Order: {item.order}
-            </Text>
-            <View
-              style={[
-                styles.statusBadge,
-                {backgroundColor: item.isActive ? '#4CAF50' + '20' : '#ccc' + '20'},
-              ]}>
-              <Text
-                style={[
-                  styles.statusText,
-                  {color: item.isActive ? '#4CAF50' : theme.textSecondary},
-                ]}>
-                {item.isActive ? 'Active' : 'Inactive'}
+            <View style={styles.metaRow}>
+              <Text style={[styles.metaText, {color: theme.textSecondary}]}>
+                Order: {item.order}
               </Text>
+              <View
+                style={[
+                  styles.statusBadge,
+                  {backgroundColor: item.isActive ? '#4CAF50' + '20' : '#ccc' + '20'},
+                ]}>
+                <Text
+                  style={[
+                    styles.statusText,
+                    {color: item.isActive ? '#4CAF50' : theme.textSecondary},
+                  ]}>
+                  {item.isActive ? 'Active' : 'Inactive'}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.metaRow}>
+              {item.questionnaire && item.questionnaire.length > 0 && (
+                <View style={[styles.questionBadge, {backgroundColor: theme.primary + '20', borderColor: theme.primary}]}>
+                  <Icon name="quiz" size={14} color={theme.primary} />
+                  <Text style={[styles.questionBadgeText, {color: theme.primary}]}>
+                    {item.questionnaire.length} {item.questionnaire.length === 1 ? 'Question' : 'Questions'}
+                  </Text>
+                </View>
+              )}
+              {item.requiresVehicle && (
+                <View style={[styles.vehicleBadge, {backgroundColor: '#FF9500' + '20', borderColor: '#FF9500'}]}>
+                  <Icon name="directions-car" size={14} color="#FF9500" />
+                  <Text style={[styles.vehicleBadgeText, {color: '#FF9500'}]}>Vehicle Required</Text>
+                </View>
+              )}
             </View>
           </View>
         </View>
@@ -217,17 +308,24 @@ export default function AdminServiceCategoriesScreen({navigation}: any) {
       <View style={styles.categoryActions}>
         <TouchableOpacity
           style={[styles.actionButton, {backgroundColor: theme.primary + '20'}]}
-          onPress={() => handleEdit(item)}>
+          onPress={(e) => {
+            e.stopPropagation();
+            handleEdit(item);
+          }}>
           <Icon name="edit" size={20} color={theme.primary} />
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.actionButton, {backgroundColor: '#FF3B30' + '20'}]}
-          onPress={() => handleDelete(item)}>
+          onPress={(e) => {
+            e.stopPropagation();
+            handleDelete(item);
+          }}>
           <Icon name="delete" size={20} color="#FF3B30" />
         </TouchableOpacity>
       </View>
-    </View>
-  );
+    </TouchableOpacity>
+    );
+  };
 
   const renderModal = () => {
     const isEdit = showEditModal;
@@ -341,6 +439,55 @@ export default function AdminServiceCategoriesScreen({navigation}: any) {
                   ios_backgroundColor={theme.border}
                 />
               </View>
+
+              <View style={styles.switchContainer}>
+                <View style={styles.switchLabelContainer}>
+                  <Text style={[styles.label, {color: theme.text, marginTop: 0}]}>Requires Vehicle</Text>
+                  <Text style={[styles.switchSubtext, {color: theme.textSecondary}]}>
+                    {requiresVehicle ? 'Providers must have vehicle info' : 'No vehicle required'}
+                  </Text>
+                </View>
+                <Switch
+                  value={requiresVehicle}
+                  onValueChange={setRequiresVehicle}
+                  trackColor={{false: theme.border, true: theme.primary}}
+                  thumbColor="#FFFFFF"
+                  ios_backgroundColor={theme.border}
+                />
+              </View>
+
+              <View style={styles.divider} />
+
+              <View style={styles.questionnaireSection}>
+                <Text style={[styles.label, {color: theme.text}]}>Questionnaire</Text>
+                <Text style={[styles.switchSubtext, {color: theme.textSecondary, marginBottom: 12}]}>
+                  {questionnaire.length} {questionnaire.length === 1 ? 'question' : 'questions'} added
+                </Text>
+                <TouchableOpacity
+                  style={[styles.addQuestionButton, {borderColor: theme.primary}]}
+                  onPress={() => {
+                    // Set pending modal reopen before navigating
+                    setPendingModalReopen(isEdit ? 'edit' : 'add');
+
+                    // Close current modal
+                    setShowAddModal(false);
+                    setShowEditModal(false);
+
+                    // Navigate to questionnaire editor
+                    navigation.navigate('AdminCategoryQuestionnaireEditor', {
+                      categoryName: name || 'Category',
+                      questionnaire: questionnaire,
+                      onSave: (updatedQuestionnaire: any[]) => {
+                        setQuestionnaire(updatedQuestionnaire);
+                      },
+                    });
+                  }}>
+                  <Icon name="add-circle-outline" size={20} color={theme.primary} />
+                  <Text style={[styles.addQuestionText, {color: theme.primary}]}>
+                    {questionnaire.length > 0 ? 'Edit Questionnaire' : 'Add Questions'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </ScrollView>
 
             <View style={styles.modalFooter}>
@@ -408,6 +555,85 @@ export default function AdminServiceCategoriesScreen({navigation}: any) {
       </TouchableOpacity>
 
       {renderModal()}
+
+      {/* Custom Alert Modal */}
+      <Modal
+        visible={alertModal.visible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={hideAlert}>
+        <View style={styles.alertOverlay}>
+          <View style={[styles.alertContainer, {backgroundColor: theme.card}]}>
+            {/* Alert Icon */}
+            <View style={[
+              styles.alertIconContainer,
+              {backgroundColor:
+                alertModal.type === 'success' ? '#4CAF50' + '20' :
+                alertModal.type === 'error' ? '#FF3B30' + '20' :
+                alertModal.type === 'confirm' ? '#FF9500' + '20' :
+                theme.primary + '20'
+              }
+            ]}>
+              <Icon
+                name={
+                  alertModal.type === 'success' ? 'check-circle' :
+                  alertModal.type === 'error' ? 'error' :
+                  alertModal.type === 'confirm' ? 'warning' :
+                  'info'
+                }
+                size={48}
+                color={
+                  alertModal.type === 'success' ? '#4CAF50' :
+                  alertModal.type === 'error' ? '#FF3B30' :
+                  alertModal.type === 'confirm' ? '#FF9500' :
+                  theme.primary
+                }
+              />
+            </View>
+
+            {/* Alert Title */}
+            <Text style={[styles.alertTitle, {color: theme.text}]}>
+              {alertModal.title}
+            </Text>
+
+            {/* Alert Message */}
+            <Text style={[styles.alertMessage, {color: theme.textSecondary}]}>
+              {alertModal.message}
+            </Text>
+
+            {/* Alert Buttons */}
+            <View style={styles.alertButtons}>
+              {alertModal.buttons.map((button, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.alertButton,
+                    button.style === 'cancel' && {backgroundColor: theme.background, borderWidth: 1, borderColor: theme.border},
+                    button.style === 'destructive' && {backgroundColor: '#FF3B30'},
+                    button.style === 'default' && {backgroundColor: theme.primary},
+                    !button.style && {backgroundColor: theme.primary},
+                  ]}
+                  onPress={() => {
+                    if (button.onPress) {
+                      button.onPress();
+                    } else {
+                      hideAlert();
+                    }
+                  }}>
+                  <Text
+                    style={[
+                      styles.alertButtonText,
+                      button.style === 'cancel' && {color: theme.text},
+                      (button.style === 'destructive' || button.style === 'default' || !button.style) && {color: '#fff'},
+                    ]}>
+                    {button.text}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -463,9 +689,13 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   categoryMeta: {
+    gap: 8,
+  },
+  metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
+    flexWrap: 'wrap',
   },
   metaText: {
     fontSize: 12,
@@ -476,6 +706,32 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   statusText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  questionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 16,
+    gap: 6,
+    borderWidth: 1,
+  },
+  questionBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  vehicleBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 16,
+    gap: 6,
+    borderWidth: 1,
+  },
+  vehicleBadgeText: {
     fontSize: 12,
     fontWeight: '600',
   },
@@ -642,6 +898,85 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#fff',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#e0e0e0',
+    marginVertical: 16,
+  },
+  questionnaireSection: {
+    marginBottom: 16,
+  },
+  addQuestionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    gap: 8,
+  },
+  addQuestionText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  // Custom Alert Modal Styles
+  alertOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  alertContainer: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 4},
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  alertIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  alertTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  alertMessage: {
+    fontSize: 15,
+    lineHeight: 22,
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+  alertButtons: {
+    flexDirection: 'row',
+    width: '100%',
+    gap: 12,
+  },
+  alertButton: {
+    flex: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  alertButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

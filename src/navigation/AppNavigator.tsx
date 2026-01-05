@@ -25,6 +25,8 @@ import AdminEditProviderScreen from '../screens/AdminEditProviderScreen';
 import AdminProviderApprovalsScreen from '../screens/AdminProviderApprovalsScreen';
 import AdminProviderDetailsScreen from '../screens/AdminProviderDetailsScreen';
 import AdminServiceCategoriesScreen from '../screens/AdminServiceCategoriesScreen';
+import AdminServiceCategoryDetailsScreen from '../screens/AdminServiceCategoryDetailsScreen';
+import AdminCategoryQuestionnaireEditorScreen from '../screens/AdminCategoryQuestionnaireEditorScreen';
 import AdminUsersManagementScreen from '../screens/AdminUsersManagementScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import PaymentScreen from '../components/PaymentScreen';
@@ -162,6 +164,26 @@ export default function AppNavigator() {
           options={{
             headerShown: true,
             title: 'Service Categories',
+            headerStyle: {backgroundColor: theme.card},
+            headerTintColor: theme.text,
+          }}
+        />
+        <Stack.Screen
+          name="AdminServiceCategoryDetails"
+          component={AdminServiceCategoryDetailsScreen}
+          options={{
+            headerShown: true,
+            title: 'Category Details',
+            headerStyle: {backgroundColor: theme.card},
+            headerTintColor: theme.text,
+          }}
+        />
+        <Stack.Screen
+          name="AdminCategoryQuestionnaireEditor"
+          component={AdminCategoryQuestionnaireEditorScreen}
+          options={{
+            headerShown: true,
+            title: 'Edit Questionnaire',
             headerStyle: {backgroundColor: theme.card},
             headerTintColor: theme.text,
           }}

@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  Alert,
   ActivityIndicator,
   Image,
 } from 'react-native';
@@ -15,6 +14,8 @@ import storage from '@react-native-firebase/storage';
 import firebaseApp from '@react-native-firebase/app';
 import {launchImageLibrary} from 'react-native-image-picker';
 import RNFS from 'react-native-fs';
+import AlertModal from '../components/AlertModal';
+import SuccessModal from '../components/SuccessModal';
 
 // Helper function to check if Firebase is initialized
 const isFirebaseInitialized = (): boolean => {
@@ -100,10 +101,12 @@ export default function AdminAddProviderScreen({navigation}: any) {
       try {
         const tooLarge = await isImageTooLarge(uri);
         if (tooLarge) {
-          Alert.alert(
-            'Image Too Large',
-            'The selected image is larger than 50KB. Please select a smaller image or use a lower quality setting.',
-          );
+          setAlertModal({
+            visible: true,
+            title: 'Image Too Large',
+            message: 'The selected image is larger than 50KB. Please select a smaller image or use a lower quality setting.',
+            type: 'warning',
+          });
           throw new Error('Image size exceeds 50KB limit');
         }
       } catch (sizeCheckError: any) {
@@ -174,12 +177,22 @@ export default function AdminAddProviderScreen({navigation}: any) {
 
   const handleAddProvider = async () => {
     if (!isFirebaseInitialized()) {
-      Alert.alert('Error', 'Firebase is not initialized. Please restart the app.');
+      setAlertModal({
+        visible: true,
+        title: 'Error',
+        message: 'Firebase is not initialized. Please restart the app.',
+        type: 'error',
+      });
       return;
     }
 
     if (!name || !serviceType || !email || !phone) {
-      Alert.alert('Error', 'Please fill all required fields');
+      setAlertModal({
+        visible: true,
+        title: 'Error',
+        message: 'Please fill all required fields',
+        type: 'error',
+      });
       return;
     }
 
@@ -191,7 +204,12 @@ export default function AdminAddProviderScreen({navigation}: any) {
           photoUrl = await uploadImage(photo);
         } catch (error: any) {
           console.error('Failed to upload image:', error);
-          Alert.alert('Upload Error', error.message || 'Failed to upload image. Please try again.');
+          setAlertModal({
+            visible: true,
+            title: 'Upload Error',
+            message: error.message || 'Failed to upload image. Please try again.',
+            type: 'error',
+          });
           setLoading(false);
           return;
         }
@@ -211,11 +229,14 @@ export default function AdminAddProviderScreen({navigation}: any) {
         updatedAt: firestore.FieldValue.serverTimestamp(),
       });
 
-      Alert.alert('Success', 'Provider added successfully', [
-        {text: 'OK', onPress: () => navigation.goBack()},
-      ]);
+      setShowSuccessModal(true);
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to add provider');
+      setAlertModal({
+        visible: true,
+        title: 'Error',
+        message: error.message || 'Failed to add provider',
+        type: 'error',
+      });
     } finally {
       setLoading(false);
     }
@@ -302,6 +323,26 @@ export default function AdminAddProviderScreen({navigation}: any) {
           )}
         </TouchableOpacity>
       </View>
+
+      {/* Alert Modal */}
+      <AlertModal
+        visible={alertModal.visible}
+        title={alertModal.title}
+        message={alertModal.message}
+        type={alertModal.type}
+        onClose={() => setAlertModal({...alertModal, visible: false})}
+      />
+
+      {/* Success Modal */}
+      <SuccessModal
+        visible={showSuccessModal}
+        title="Success"
+        message="Provider added successfully"
+        onClose={() => {
+          setShowSuccessModal(false);
+          navigation.goBack();
+        }}
+      />
     </ScrollView>
   );
 }

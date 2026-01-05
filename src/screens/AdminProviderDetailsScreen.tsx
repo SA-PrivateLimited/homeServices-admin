@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useEffect} from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import firestore from '@react-native-firebase/firestore';
 
 interface Provider {
   id: string;
@@ -35,6 +36,9 @@ interface Provider {
     idProof?: string;
     addressProof?: string;
     certificate?: string;
+    idProofVerified?: boolean;
+    addressProofVerified?: boolean;
+    certificateVerified?: boolean;
   };
 }
 
@@ -51,11 +55,48 @@ export default function AdminProviderDetailsScreen({
   route,
   navigation,
 }: AdminProviderDetailsScreenProps) {
-  const {provider} = route.params;
+  const {provider: providerParam} = route.params;
+  const [provider, setProvider] = useState<Provider>(providerParam);
+  const [loading, setLoading] = useState(true);
   const [imageModalVisible, setImageModalVisible] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
+
+  // Fetch fresh provider data including documents
+  useEffect(() => {
+    const fetchProviderData = async () => {
+      try {
+        setLoading(true);
+        const providerDoc = await firestore()
+          .collection('providers')
+          .doc(providerParam.id)
+          .get();
+
+        if (providerDoc.exists) {
+          const providerData = {
+            id: providerDoc.id,
+            ...providerDoc.data(),
+          } as Provider;
+          
+          // Debug: Log documents to verify they're being fetched
+          console.log('Provider documents:', providerData.documents);
+          console.log('Provider data keys:', Object.keys(providerData));
+          
+          setProvider(providerData);
+        } else {
+          console.warn('Provider document not found:', providerParam.id);
+        }
+      } catch (error: any) {
+        console.error('Error fetching provider data:', error);
+        Alert.alert('Error', 'Failed to load provider details');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProviderData();
+  }, [providerParam.id]);
 
   const openImageModal = (imageUrl: string) => {
     setSelectedImage(imageUrl);
@@ -88,6 +129,15 @@ export default function AdminProviderDetailsScreen({
       provider.documents?.certificate
     );
   };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#007AFF" />
+        <Text style={styles.loadingText}>Loading provider details...</Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={styles.container}>
@@ -177,6 +227,12 @@ export default function AdminProviderDetailsScreen({
                 <View style={styles.documentHeader}>
                   <Icon name="badge" size={24} color="#007AFF" />
                   <Text style={styles.documentTitle}>ID Proof</Text>
+                  {provider.documents?.idProofVerified && (
+                    <View style={styles.verifiedBadge}>
+                      <Icon name="verified" size={18} color="#4CAF50" />
+                      <Text style={styles.verifiedBadgeText}>Verified</Text>
+                    </View>
+                  )}
                 </View>
                 {!imageErrors.has('idProof') ? (
                   <Image
@@ -219,6 +275,12 @@ export default function AdminProviderDetailsScreen({
                 <View style={styles.documentHeader}>
                   <Icon name="home" size={24} color="#4CAF50" />
                   <Text style={styles.documentTitle}>Address Proof</Text>
+                  {provider.documents?.addressProofVerified && (
+                    <View style={styles.verifiedBadge}>
+                      <Icon name="verified" size={18} color="#4CAF50" />
+                      <Text style={styles.verifiedBadgeText}>Verified</Text>
+                    </View>
+                  )}
                 </View>
                 {!imageErrors.has('addressProof') ? (
                   <Image
@@ -261,6 +323,12 @@ export default function AdminProviderDetailsScreen({
                 <View style={styles.documentHeader}>
                   <Icon name="school" size={24} color="#FF9500" />
                   <Text style={styles.documentTitle}>Certificate</Text>
+                  {provider.documents?.certificateVerified && (
+                    <View style={styles.verifiedBadge}>
+                      <Icon name="verified" size={18} color="#4CAF50" />
+                      <Text style={styles.verifiedBadgeText}>Verified</Text>
+                    </View>
+                  )}
                 </View>
                 {!imageErrors.has('certificate') ? (
                   <Image
@@ -432,6 +500,7 @@ const styles = StyleSheet.create({
   documentHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 12,
   },
   documentTitle: {
@@ -439,6 +508,21 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 10,
     color: '#333',
+    flex: 1,
+  },
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  verifiedBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#4CAF50',
   },
   documentThumbnail: {
     width: '100%',
@@ -509,6 +593,17 @@ const styles = StyleSheet.create({
   },
   viewTextDisabled: {
     color: '#999',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#666',
   },
 });
 
