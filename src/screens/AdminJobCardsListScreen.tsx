@@ -13,6 +13,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import firestore from '@react-native-firebase/firestore';
 import {useStore} from '../store';
 import AlertModal from '../components/AlertModal';
+import useTranslation from '../hooks/useTranslation';
 
 interface JobCard {
   id: string;
@@ -41,6 +42,7 @@ export default function AdminJobCardsListScreen({navigation}: any) {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | JobCard['status']>('all');
   const {currentUser} = useStore();
+  const {t} = useTranslation();
   const [alertModal, setAlertModal] = useState<{
     visible: boolean;
     title: string;
@@ -65,8 +67,8 @@ export default function AdminJobCardsListScreen({navigation}: any) {
     if (currentUser?.role !== 'admin') {
       setAlertModal({
         visible: true,
-        title: 'Access Denied',
-        message: 'Only administrators can access this screen.',
+        title: t('common.accessDenied'),
+        message: t('common.onlyAdminAccess'),
         type: 'error',
       });
       setTimeout(() => {
@@ -95,8 +97,8 @@ export default function AdminJobCardsListScreen({navigation}: any) {
           console.error('Error loading job cards:', error);
           setAlertModal({
             visible: true,
-            title: 'Error',
-            message: 'Failed to load job cards. Please try again.',
+            title: t('common.error'),
+            message: t('jobCards.failedToLoad'),
             type: 'error',
           });
           setLoading(false);
@@ -177,7 +179,7 @@ export default function AdminJobCardsListScreen({navigation}: any) {
           <View style={[styles.statusBadge, {backgroundColor: statusColor + '20'}]}>
             <Icon name={statusIcon} size={18} color={statusColor} />
             <Text style={[styles.statusText, {color: statusColor}]}>
-              {item.status === 'in-progress' ? 'In Progress' : item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+              {item.status === 'in-progress' ? t('jobCards.inProgress') : t(`jobCards.${item.status}`)}
             </Text>
           </View>
         </View>
@@ -207,7 +209,7 @@ export default function AdminJobCardsListScreen({navigation}: any) {
           <View style={styles.detailRow}>
             <Icon name="access-time" size={14} color="#666" />
             <Text style={styles.detailText}>
-              Created: {item.createdAt.toLocaleDateString()} {item.createdAt.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
+              {t('jobCards.created')}: {item.createdAt.toLocaleDateString()} {item.createdAt.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
             </Text>
           </View>
         </View>
@@ -237,8 +239,8 @@ export default function AdminJobCardsListScreen({navigation}: any) {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Job Cards</Text>
-        <Text style={styles.headerSubtitle}>{jobCards.length} total job cards</Text>
+        <Text style={styles.headerTitle}>{t('jobCards.title')}</Text>
+        <Text style={styles.headerSubtitle}>{t('jobCards.totalJobCards', {count: jobCards.length})}</Text>
       </View>
 
       {/* Search */}
@@ -247,7 +249,7 @@ export default function AdminJobCardsListScreen({navigation}: any) {
           <Icon name="search" size={20} color="#8E8E93" />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search by customer, provider, service..."
+            placeholder={t('jobCards.searchPlaceholder')}
             value={searchQuery}
             onChangeText={setSearchQuery}
             placeholderTextColor="#8E8E93"
@@ -271,7 +273,7 @@ export default function AdminJobCardsListScreen({navigation}: any) {
                   styles.filterChipText,
                   statusFilter === status && styles.filterChipTextActive,
                 ]}>
-                {status === 'all' ? 'All' : status === 'in-progress' ? 'In Progress' : status.charAt(0).toUpperCase() + status.slice(1)}
+                {status === 'all' ? t('common.all') : status === 'in-progress' ? t('jobCards.inProgress') : (status === 'pending' ? t('jobCards.pending') : status === 'accepted' ? t('jobCards.accepted') : status === 'completed' ? t('jobCards.completed') : status === 'cancelled' ? t('jobCards.cancelled') : status)}
                 {status !== 'all' && ` (${statusCounts[status]})`}
               </Text>
             </TouchableOpacity>
@@ -285,8 +287,8 @@ export default function AdminJobCardsListScreen({navigation}: any) {
           <Icon name="assignment" size={64} color="#ccc" />
           <Text style={styles.emptyText}>
             {searchQuery || statusFilter !== 'all'
-              ? 'No job cards found'
-              : 'No job cards yet'}
+              ? t('jobCards.noJobCardsFound')
+              : t('jobCards.noJobCardsYet')}
           </Text>
         </View>
       ) : (
@@ -316,8 +318,8 @@ export default function AdminJobCardsListScreen({navigation}: any) {
       {jobCardDetailsModal.jobCard && (
         <AlertModal
           visible={jobCardDetailsModal.visible}
-          title="Job Card Details"
-          message={`Customer: ${jobCardDetailsModal.jobCard.customerName}\nProvider: ${jobCardDetailsModal.jobCard.providerName}\nService: ${jobCardDetailsModal.jobCard.serviceType}\nStatus: ${jobCardDetailsModal.jobCard.status}${jobCardDetailsModal.jobCard.problem ? `\nProblem: ${jobCardDetailsModal.jobCard.problem}` : ''}`}
+          title={t('jobCards.jobCardDetails')}
+          message={`${t('jobCards.customerName')}: ${jobCardDetailsModal.jobCard.customerName}\n${t('jobCards.providerName')}: ${jobCardDetailsModal.jobCard.providerName}\n${t('jobCards.serviceType')}: ${jobCardDetailsModal.jobCard.serviceType}\n${t('jobCards.status')}: ${jobCardDetailsModal.jobCard.status === 'in-progress' ? t('jobCards.inProgress') : t(`jobCards.${jobCardDetailsModal.jobCard.status}`)}${jobCardDetailsModal.jobCard.problem ? `\n${t('jobCards.problem')}: ${jobCardDetailsModal.jobCard.problem}` : ''}`}
           type="info"
           onClose={() => setJobCardDetailsModal({visible: false, jobCard: null})}
         />

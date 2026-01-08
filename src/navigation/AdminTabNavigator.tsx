@@ -1,6 +1,10 @@
 import React from 'react';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
+import {View} from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import {useStore} from '../store';
+import {lightTheme, darkTheme} from '../utils/theme';
+import LanguageSwitcher from '../components/LanguageSwitcher';
 
 import AdminProvidersListScreen from '../screens/AdminProvidersListScreen';
 import AdminSettingsScreen from '../screens/AdminSettingsScreen';
@@ -12,11 +16,26 @@ import AdminOrdersScreen from '../screens/AdminOrdersScreen';
 const Tab = createBottomTabNavigator();
 
 export default function AdminTabNavigator() {
+  const {isDarkMode} = useStore();
+  const theme = isDarkMode ? darkTheme : lightTheme;
+
   return (
     <Tab.Navigator
       screenOptions={{
         tabBarActiveTintColor: '#FF9500',
         tabBarInactiveTintColor: '#8E8E93',
+        headerStyle: {
+          backgroundColor: theme.card,
+        },
+        headerTintColor: theme.text,
+        headerTitleStyle: {
+          fontWeight: '600',
+        },
+        headerRight: () => (
+          <View style={{marginRight: 16}}>
+            <LanguageSwitcher compact />
+          </View>
+        ),
       }}>
       <Tab.Screen
         name="Providers"

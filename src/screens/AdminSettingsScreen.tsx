@@ -14,6 +14,8 @@ import auth from '@react-native-firebase/auth';
 import firebaseApp from '@react-native-firebase/app';
 import {useStore} from '../store';
 import {lightTheme, darkTheme, commonStyles} from '../utils/theme';
+import LanguageSwitcher from '../components/LanguageSwitcher';
+import useTranslation from '../hooks/useTranslation';
 
 // Helper function to check if Firebase is initialized
 const isFirebaseInitialized = (): boolean => {
@@ -26,8 +28,9 @@ const isFirebaseInitialized = (): boolean => {
 };
 
 export default function SettingsScreen({navigation}: any) {
-  const {currentUser: storeUser, isDarkMode, toggleTheme} = useStore();
+  const {currentUser: storeUser, isDarkMode, toggleTheme, language} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
+  const {t} = useTranslation();
   // Safely get current user only if Firebase is initialized
   const authUser = isFirebaseInitialized() ? auth().currentUser : null;
   const currentUser = storeUser || authUser;
@@ -154,14 +157,14 @@ export default function SettingsScreen({navigation}: any) {
       </View>
 
       <View style={[styles.section, {backgroundColor: theme.card}]}>
-        <Text style={[styles.sectionTitle, {color: theme.textSecondary}]}>APPEARANCE</Text>
+        <Text style={[styles.sectionTitle, {color: theme.textSecondary}]}>{t('settings.appearance')}</Text>
         <View style={[styles.menuItem, {borderBottomColor: theme.border}]}>
           <View style={styles.menuItemLeft}>
             <Ionicons name="moon" size={24} color={theme.primary} />
             <View style={styles.menuItemTextContainer}>
-              <Text style={[styles.menuItemText, {color: theme.text}]}>Dark Mode</Text>
+              <Text style={[styles.menuItemText, {color: theme.text}]}>{t('settings.darkMode')}</Text>
               <Text style={[styles.menuItemSubtext, {color: theme.textSecondary}]}>
-                {isDarkMode ? 'Enabled' : 'Disabled'}
+                {isDarkMode ? t('common.enabled') : t('common.disabled')}
               </Text>
             </View>
           </View>
@@ -171,6 +174,18 @@ export default function SettingsScreen({navigation}: any) {
             trackColor={{false: theme.border, true: theme.primary}}
             thumbColor="#FFFFFF"
           />
+        </View>
+        <View style={[styles.menuItem, {borderBottomColor: theme.border, borderBottomWidth: 0}]}>
+          <View style={styles.menuItemLeft}>
+            <Ionicons name="language" size={24} color={theme.primary} />
+            <View style={styles.menuItemTextContainer}>
+              <Text style={[styles.menuItemText, {color: theme.text}]}>{t('settings.language')}</Text>
+              <Text style={[styles.menuItemSubtext, {color: theme.textSecondary}]}>
+                {language === 'en' ? t('settings.english') : t('settings.hindi')}
+              </Text>
+            </View>
+          </View>
+          <LanguageSwitcher />
         </View>
       </View>
 

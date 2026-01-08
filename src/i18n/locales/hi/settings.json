@@ -1,0 +1,13 @@
+{
+  "title": "सेटिंग्स",
+  "profile": "प्रोफ़ाइल",
+  "language": "भाषा",
+  "theme": "थीम",
+  "appearance": "दिखावट",
+  "darkMode": "डार्क मोड",
+  "lightMode": "लाइट मोड",
+  "selectLanguage": "भाषा चुनें",
+  "english": "English",
+  "hindi": "हिंदी",
+  "languageChanged": "भाषा सफलतापूर्वक बदली गई"
+}

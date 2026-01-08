@@ -1,0 +1,13 @@
+{
+  "title": "Settings",
+  "profile": "Profile",
+  "language": "Language",
+  "theme": "Theme",
+  "appearance": "Appearance",
+  "darkMode": "Dark Mode",
+  "lightMode": "Light Mode",
+  "selectLanguage": "Select Language",
+  "english": "English",
+  "hindi": "हिंदी",
+  "languageChanged": "Language changed successfully"
+}

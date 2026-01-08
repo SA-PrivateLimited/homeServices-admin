@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import {CommonActions} from '@react-navigation/native';
+import {Picker} from '@react-native-picker/picker';
 import {useStore} from '../store';
 import {lightTheme, darkTheme, commonStyles} from '../utils/theme';
 import {COPYRIGHT_OWNER} from '@env';
@@ -19,14 +20,18 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
 import LogoutConfirmationModal from '../components/LogoutConfirmationModal';
+import useTranslation from '../hooks/useTranslation';
+import LanguageSwitcher from '../components/LanguageSwitcher';
+import {changeLanguage} from '../i18n';
 
 interface SettingsScreenProps {
   navigation: any;
 }
 
 const SettingsScreen: React.FC<SettingsScreenProps> = ({navigation}) => {
-  const {isDarkMode, toggleTheme, currentUser, setCurrentUser} = useStore();
+  const {isDarkMode, toggleTheme, currentUser, setCurrentUser, language, setLanguage} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
+  const {t} = useTranslation();
 
   const handleAbout = () => {
     Alert.alert(
@@ -128,11 +133,12 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({navigation}) => {
     onPress?: () => void;
     rightComponent?: React.ReactNode;
   }) => (
-    <TouchableOpacity
-      style={[styles.settingItem, {backgroundColor: theme.card}]}
-      onPress={onPress}
-      disabled={!onPress && !rightComponent}>
-      <View style={styles.settingLeft}>
+    <View style={[styles.settingItem, {backgroundColor: theme.card}]}>
+      <TouchableOpacity
+        style={styles.settingLeft}
+        onPress={onPress}
+        disabled={!onPress || !!rightComponent}
+        activeOpacity={onPress ? 0.7 : 1}>
         <Icon name={icon} size={22} color={theme.primary} />
         <View style={styles.settingText}>
           <Text style={[styles.settingTitle, {color: theme.text}]}>
@@ -144,11 +150,13 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({navigation}) => {
             </Text>
           )}
         </View>
-      </View>
-      {rightComponent || (
+      </TouchableOpacity>
+      {rightComponent ? (
+        <View style={{minWidth: 150, alignItems: 'flex-end'}}>{rightComponent}</View>
+      ) : (
         onPress && <Icon name="chevron-forward" size={20} color={theme.textSecondary} />
       )}
-    </TouchableOpacity>
+    </View>
   );
 
   const getInitials = (name: string) => {
@@ -246,12 +254,12 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({navigation}) => {
 
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, {color: theme.textSecondary}]}>
-          APPEARANCE
+          {String(t('settings.appearance') || 'APPEARANCE')}
         </Text>
         <SettingItem
           icon="moon"
-          title="Dark Mode"
-          subtitle={isDarkMode ? 'Enabled' : 'Disabled'}
+          title={String(t('settings.darkMode') || 'Dark Mode')}
+          subtitle={isDarkMode ? String(t('common.enabled') || 'Enabled') : String(t('common.disabled') || 'Disabled')}
           rightComponent={
             <Switch
               value={isDarkMode}
@@ -260,6 +268,12 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({navigation}) => {
               thumbColor="#FFFFFF"
             />
           }
+        />
+        <SettingItem
+          icon="language"
+          title={String(t('settings.language') || 'Language')}
+          subtitle={language === 'en' ? String(t('settings.english') || 'English') : String(t('settings.hindi') || 'Hindi')}
+          rightComponent={<LanguageSwitcher />}
         />
       </View>
 
@@ -439,6 +453,11 @@ const styles = StyleSheet.create({
   },
   profileHeaderEmail: {
     fontSize: 14,
+  },
+  languagePicker: {
+    width: 150,
+    height: 50,
+    backgroundColor: 'transparent',
   },
 });
 

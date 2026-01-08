@@ -5,12 +5,14 @@ import {
   FlatList,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   ActivityIndicator,
   Image,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import firestore from '@react-native-firebase/firestore';
+import useTranslation from '../hooks/useTranslation';
+import AlertModal from '../components/AlertModal';
+import ConfirmationModal from '../components/ConfirmationModal';
 
 interface Provider {
   id: string;
@@ -44,6 +46,31 @@ export default function AdminProvidersListScreen({navigation}: any) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
+  const {t} = useTranslation();
+  
+  const [alertModal, setAlertModal] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    type: 'success' | 'error' | 'info' | 'warning';
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+    type: 'info',
+  });
+  
+  const [confirmationModal, setConfirmationModal] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
 
   useEffect(() => {
     let unsubscribe: (() => void) | null = null;
@@ -71,7 +98,7 @@ export default function AdminProvidersListScreen({navigation}: any) {
               timeoutId = setTimeout(tryFetch, 200);
               return;
             }
-            setError(error.message || 'Failed to load providers');
+            setError(error.message || t('providers.failedToLoad'));
             setLoading(false);
           },
         );
@@ -99,25 +126,30 @@ export default function AdminProvidersListScreen({navigation}: any) {
   }, []);
 
   const handleDelete = (providerId: string, providerName: string) => {
-    Alert.alert(
-      'Delete Provider',
-      `Are you sure you want to delete ${providerName}?`,
-      [
-        {text: 'Cancel', style: 'cancel'},
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await firestore().collection('providers').doc(providerId).delete();
-              Alert.alert('Success', 'Provider deleted successfully');
-            } catch (error: any) {
-              Alert.alert('Error', error.message || 'Failed to delete provider');
-            }
-          },
-        },
-      ],
-    );
+    setConfirmationModal({
+      visible: true,
+      title: t('providers.deleteProvider'),
+      message: t('providers.deleteProviderConfirm', {name: providerName}),
+      onConfirm: async () => {
+        setConfirmationModal({visible: false, title: '', message: '', onConfirm: () => {}});
+        try {
+          await firestore().collection('providers').doc(providerId).delete();
+          setAlertModal({
+            visible: true,
+            title: t('common.success'),
+            message: t('providers.providerDeleted'),
+            type: 'success',
+          });
+        } catch (error: any) {
+          setAlertModal({
+            visible: true,
+            title: t('common.error'),
+            message: error.message || t('providers.failedToDelete'),
+            type: 'error',
+          });
+        }
+      },
+    });
   };
 
   const getInitials = (name: string): string => {
@@ -135,7 +167,7 @@ export default function AdminProvidersListScreen({navigation}: any) {
   };
 
   const renderProvider = ({item}: {item: Provider}) => {
-    const serviceType = item.serviceType || 'General Service';
+    const serviceType = item.serviceType || t('providers.generalService');
     const photo = item.profileImage;
     const rating = item.rating || 0;
     
@@ -181,12 +213,12 @@ export default function AdminProvidersListScreen({navigation}: any) {
           <Text style={styles.serviceType}>{serviceType}</Text>
           {item.experience && (
             <Text style={styles.detail}>
-              {item.experience} years experience
+              {t('providers.experienceWithYears', {years: item.experience, count: item.experience})}
             </Text>
           )}
-          <Text style={styles.detail}>Phone: {item.phone}</Text>
+          <Text style={styles.detail}>{t('providers.phone')}: {item.phone}</Text>
           {item.email && (
-            <Text style={styles.detail}>Email: {item.email}</Text>
+            <Text style={styles.detail}>{t('providers.email')}: {item.email}</Text>
           )}
           {item.address && (
             <View style={styles.addressRow}>
@@ -223,7 +255,7 @@ export default function AdminProvidersListScreen({navigation}: any) {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color="#007AFF" />
-        <Text style={styles.loadingText}>Loading providers...</Text>
+        <Text style={styles.loadingText}>{t('providers.loading')}</Text>
       </View>
     );
   }
@@ -247,7 +279,7 @@ export default function AdminProvidersListScreen({navigation}: any) {
               setError(null);
             },
             error => {
-              setError(error.message || 'Failed to load providers');
+              setError(error.message || t('providers.failedToLoad'));
               setLoading(false);
             },
           );
@@ -263,10 +295,10 @@ export default function AdminProvidersListScreen({navigation}: any) {
     return (
       <View style={styles.centerContainer}>
         <Icon name="error-outline" size={64} color="#FF3B30" />
-        <Text style={styles.errorText}>Error loading providers</Text>
+        <Text style={styles.errorText}>{t('providers.errorLoading')}</Text>
         <Text style={styles.errorSubtext}>{error}</Text>
         <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
-          <Text style={styles.retryButtonText}>Retry</Text>
+          <Text style={styles.retryButtonText}>{t('common.retry')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -282,7 +314,7 @@ export default function AdminProvidersListScreen({navigation}: any) {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Icon name="handyman" size={64} color="#ccc" />
-            <Text style={styles.emptyText}>No providers added yet</Text>
+            <Text style={styles.emptyText}>{t('providers.noProvidersYet')}</Text>
           </View>
         }
       />
@@ -291,6 +323,24 @@ export default function AdminProvidersListScreen({navigation}: any) {
         onPress={() => navigation.navigate('AddProvider')}>
         <Icon name="add" size={24} color="#fff" />
       </TouchableOpacity>
+      
+      <AlertModal
+        visible={alertModal.visible}
+        title={alertModal.title}
+        message={alertModal.message}
+        type={alertModal.type}
+        onClose={() => setAlertModal({visible: false, title: '', message: '', type: 'info'})}
+      />
+      
+      <ConfirmationModal
+        visible={confirmationModal.visible}
+        title={confirmationModal.title}
+        message={confirmationModal.message}
+        confirmText={t('common.delete')}
+        cancelText={t('common.cancel')}
+        onConfirm={() => confirmationModal.onConfirm()}
+        onCancel={() => setConfirmationModal({visible: false, title: '', message: '', onConfirm: () => {}})}
+      />
     </View>
   );
 }

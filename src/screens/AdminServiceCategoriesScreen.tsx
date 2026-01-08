@@ -21,6 +21,7 @@ import {
   updateServiceCategory,
   ServiceCategory,
 } from '../services/serviceCategoriesAdminService';
+import useTranslation from '../hooks/useTranslation';
 
 // Common Material Icons for service categories
 const COMMON_ICONS = [
@@ -60,6 +61,7 @@ const COMMON_COLORS = [
 ];
 
 export default function AdminServiceCategoriesScreen({navigation}: any) {
+  const {t} = useTranslation();
   const {isDarkMode} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
 
@@ -136,7 +138,7 @@ export default function AdminServiceCategoriesScreen({navigation}: any) {
       const data = await fetchAllServiceCategories();
       setCategories(data);
     } catch (error: any) {
-      showAlert('Error', error.message || 'Failed to load service categories', undefined, 'error');
+      showAlert(t('common.error'), error.message || t('serviceCategories.failedToLoadCategories'), undefined, 'error');
     } finally {
       setLoading(false);
     }
@@ -169,21 +171,21 @@ export default function AdminServiceCategoriesScreen({navigation}: any) {
 
   const handleDelete = (category: ServiceCategory) => {
     showAlert(
-      'Delete Category',
-      `Are you sure you want to delete "${category.name}"? This action cannot be undone.`,
+      t('serviceCategories.deleteCategoryTitle'),
+      t('serviceCategories.deleteCategoryMessage', {name: category.name}),
       [
-        {text: 'Cancel', style: 'cancel', onPress: hideAlert},
+        {text: t('serviceCategories.cancel'), style: 'cancel', onPress: hideAlert},
         {
-          text: 'Delete',
+          text: t('serviceCategories.delete'),
           style: 'destructive',
           onPress: async () => {
             hideAlert();
             try {
               await deleteServiceCategory(category.id);
-              showAlert('Success', 'Category deleted successfully', undefined, 'success');
+              showAlert(t('common.success'), t('serviceCategories.categoryDeleted'), undefined, 'success');
               loadCategories();
             } catch (error: any) {
-              showAlert('Error', error.message || 'Failed to delete category', undefined, 'error');
+              showAlert(t('common.error'), error.message || t('serviceCategories.failedToDeleteCategory'), undefined, 'error');
             }
           },
         },
@@ -194,13 +196,13 @@ export default function AdminServiceCategoriesScreen({navigation}: any) {
 
   const handleSave = async () => {
     if (!name.trim()) {
-      showAlert('Error', 'Please enter a category name', undefined, 'error');
+      showAlert(t('common.error'), t('serviceCategories.pleaseEnterCategoryName'), undefined, 'error');
       return;
     }
 
     const orderNum = parseInt(order, 10);
     if (isNaN(orderNum) || orderNum < 1) {
-      showAlert('Error', 'Please enter a valid order number (1 or higher)', undefined, 'error');
+      showAlert(t('common.error'), t('serviceCategories.pleaseEnterValidOrder'), undefined, 'error');
       return;
     }
 
@@ -226,18 +228,18 @@ export default function AdminServiceCategoriesScreen({navigation}: any) {
 
       if (showAddModal) {
         await addServiceCategory(categoryData);
-        showAlert('Success', 'Category added successfully', undefined, 'success');
+        showAlert(t('common.success'), t('serviceCategories.categoryAdded'), undefined, 'success');
         setShowAddModal(false);
       } else if (editingCategory) {
         await updateServiceCategory(editingCategory.id, categoryData);
-        showAlert('Success', 'Category updated successfully', undefined, 'success');
+        showAlert(t('common.success'), t('serviceCategories.categoryUpdated'), undefined, 'success');
         setShowEditModal(false);
         setEditingCategory(null);
       }
 
       loadCategories();
     } catch (error: any) {
-      showAlert('Error', error.message || 'Failed to save category', undefined, 'error');
+      showAlert(t('common.error'), error.message || t('serviceCategories.failedToSaveCategory'), undefined, 'error');
     } finally {
       setSaving(false);
     }
@@ -270,7 +272,7 @@ export default function AdminServiceCategoriesScreen({navigation}: any) {
           <View style={styles.categoryMeta}>
             <View style={styles.metaRow}>
               <Text style={[styles.metaText, {color: theme.textSecondary}]}>
-                Order: {item.order}
+                {t('serviceCategories.order')}: {item.order}
               </Text>
               <View
                 style={[
@@ -282,7 +284,7 @@ export default function AdminServiceCategoriesScreen({navigation}: any) {
                     styles.statusText,
                     {color: item.isActive ? '#4CAF50' : theme.textSecondary},
                   ]}>
-                  {item.isActive ? 'Active' : 'Inactive'}
+                  {item.isActive ? t('serviceCategories.active') : t('serviceCategories.inactive')}
                 </Text>
               </View>
             </View>
@@ -291,14 +293,14 @@ export default function AdminServiceCategoriesScreen({navigation}: any) {
                 <View style={[styles.questionBadge, {backgroundColor: theme.primary + '20', borderColor: theme.primary}]}>
                   <Icon name="quiz" size={14} color={theme.primary} />
                   <Text style={[styles.questionBadgeText, {color: theme.primary}]}>
-                    {item.questionnaire.length} {item.questionnaire.length === 1 ? 'Question' : 'Questions'}
+                    {item.questionnaire.length} {item.questionnaire.length === 1 ? t('serviceCategories.question') : t('serviceCategories.questions')}
                   </Text>
                 </View>
               )}
               {item.requiresVehicle && (
                 <View style={[styles.vehicleBadge, {backgroundColor: '#FF9500' + '20', borderColor: '#FF9500'}]}>
                   <Icon name="directions-car" size={14} color="#FF9500" />
-                  <Text style={[styles.vehicleBadgeText, {color: '#FF9500'}]}>Vehicle Required</Text>
+                  <Text style={[styles.vehicleBadgeText, {color: '#FF9500'}]}>{ t('serviceCategories.vehicleRequired')}</Text>
                 </View>
               )}
             </View>
@@ -343,7 +345,7 @@ export default function AdminServiceCategoriesScreen({navigation}: any) {
           <View style={[styles.modalContent, {backgroundColor: theme.card}]}>
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, {color: theme.text}]}>
-                {isEdit ? 'Edit Category' : 'Add Category'}
+                {isEdit ? t('serviceCategories.editCategory') : t('serviceCategories.addCategory')}
               </Text>
               <TouchableOpacity
                 onPress={() => {
@@ -355,21 +357,21 @@ export default function AdminServiceCategoriesScreen({navigation}: any) {
               </TouchableOpacity>
             </View>
 
-            <ScrollView 
+            <ScrollView
               style={styles.modalBody}
               contentContainerStyle={styles.modalBodyContent}
               showsVerticalScrollIndicator={true}
               nestedScrollEnabled={true}>
-              <Text style={[styles.label, {color: theme.text}]}>Name *</Text>
+              <Text style={[styles.label, {color: theme.text}]}>{t('serviceCategories.name')} *</Text>
               <TextInput
                 style={[styles.input, {backgroundColor: theme.background, color: theme.text}]}
                 value={name}
                 onChangeText={setName}
-                placeholder="Category name"
+                placeholder={t('serviceCategories.categoryNamePlaceholder')}
                 placeholderTextColor={theme.textSecondary}
               />
 
-              <Text style={[styles.label, {color: theme.text}]}>Icon</Text>
+              <Text style={[styles.label, {color: theme.text}]}>{t('serviceCategories.icon')}</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.iconList}>
                 {COMMON_ICONS.map(iconName => (
                   <TouchableOpacity
@@ -384,7 +386,7 @@ export default function AdminServiceCategoriesScreen({navigation}: any) {
                 ))}
               </ScrollView>
 
-              <Text style={[styles.label, {color: theme.text}]}>Color</Text>
+              <Text style={[styles.label, {color: theme.text}]}>{t('serviceCategories.color')}</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.colorList}>
                 {COMMON_COLORS.map(colorValue => (
                   <TouchableOpacity
@@ -399,7 +401,7 @@ export default function AdminServiceCategoriesScreen({navigation}: any) {
                 ))}
               </ScrollView>
 
-              <Text style={[styles.label, {color: theme.text}]}>Description</Text>
+              <Text style={[styles.label, {color: theme.text}]}>{t('serviceCategories.description')}</Text>
               <TextInput
                 style={[
                   styles.input,
@@ -408,27 +410,27 @@ export default function AdminServiceCategoriesScreen({navigation}: any) {
                 ]}
                 value={description}
                 onChangeText={setDescription}
-                placeholder="Category description (optional)"
+                placeholder={t('serviceCategories.descriptionPlaceholder')}
                 placeholderTextColor={theme.textSecondary}
                 multiline
                 numberOfLines={3}
               />
 
-              <Text style={[styles.label, {color: theme.text}]}>Order *</Text>
+              <Text style={[styles.label, {color: theme.text}]}>{t('serviceCategories.orderLabel')} *</Text>
               <TextInput
                 style={[styles.input, {backgroundColor: theme.background, color: theme.text}]}
                 value={order}
                 onChangeText={setOrder}
-                placeholder="Display order (1, 2, 3...)"
+                placeholder={t('serviceCategories.orderPlaceholder')}
                 placeholderTextColor={theme.textSecondary}
                 keyboardType="numeric"
               />
 
               <View style={styles.switchContainer}>
                 <View style={styles.switchLabelContainer}>
-                  <Text style={[styles.label, {color: theme.text, marginTop: 0}]}>Active Status</Text>
+                  <Text style={[styles.label, {color: theme.text, marginTop: 0}]}>{t('serviceCategories.activeStatus')}</Text>
                   <Text style={[styles.switchSubtext, {color: theme.textSecondary}]}>
-                    {isActive ? 'Category will be visible to users' : 'Category will be hidden'}
+                    {isActive ? t('serviceCategories.categoryWillBeVisible') : t('serviceCategories.categoryWillBeHidden')}
                   </Text>
                 </View>
                 <Switch
@@ -442,9 +444,9 @@ export default function AdminServiceCategoriesScreen({navigation}: any) {
 
               <View style={styles.switchContainer}>
                 <View style={styles.switchLabelContainer}>
-                  <Text style={[styles.label, {color: theme.text, marginTop: 0}]}>Requires Vehicle</Text>
+                  <Text style={[styles.label, {color: theme.text, marginTop: 0}]}>{t('serviceCategories.requiresVehicle')}</Text>
                   <Text style={[styles.switchSubtext, {color: theme.textSecondary}]}>
-                    {requiresVehicle ? 'Providers must have vehicle info' : 'No vehicle required'}
+                    {requiresVehicle ? t('serviceCategories.providersMustHaveVehicle') : t('serviceCategories.noVehicleRequired')}
                   </Text>
                 </View>
                 <Switch
@@ -459,9 +461,12 @@ export default function AdminServiceCategoriesScreen({navigation}: any) {
               <View style={styles.divider} />
 
               <View style={styles.questionnaireSection}>
-                <Text style={[styles.label, {color: theme.text}]}>Questionnaire</Text>
+                <Text style={[styles.label, {color: theme.text}]}>{t('serviceCategories.questionnaire')}</Text>
                 <Text style={[styles.switchSubtext, {color: theme.textSecondary, marginBottom: 12}]}>
-                  {questionnaire.length} {questionnaire.length === 1 ? 'question' : 'questions'} added
+                  {t('serviceCategories.questionsAdded', {
+                    count: questionnaire.length,
+                    unit: questionnaire.length === 1 ? t('serviceCategories.question') : t('serviceCategories.questions')
+                  })}
                 </Text>
                 <TouchableOpacity
                   style={[styles.addQuestionButton, {borderColor: theme.primary}]}
@@ -484,7 +489,7 @@ export default function AdminServiceCategoriesScreen({navigation}: any) {
                   }}>
                   <Icon name="add-circle-outline" size={20} color={theme.primary} />
                   <Text style={[styles.addQuestionText, {color: theme.primary}]}>
-                    {questionnaire.length > 0 ? 'Edit Questionnaire' : 'Add Questions'}
+                    {questionnaire.length > 0 ? t('serviceCategories.editQuestionnaire') : t('serviceCategories.addQuestions')}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -498,7 +503,7 @@ export default function AdminServiceCategoriesScreen({navigation}: any) {
                   setShowEditModal(false);
                   setEditingCategory(null);
                 }}>
-                <Text style={[styles.buttonText, {color: theme.text}]}>Cancel</Text>
+                <Text style={[styles.buttonText, {color: theme.text}]}>{t('serviceCategories.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.button, styles.saveButton, {backgroundColor: theme.primary}]}
@@ -507,7 +512,7 @@ export default function AdminServiceCategoriesScreen({navigation}: any) {
                 {saving ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
-                  <Text style={styles.buttonTextWhite}>Save</Text>
+                  <Text style={styles.buttonTextWhite}>{t('serviceCategories.save')}</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -522,7 +527,7 @@ export default function AdminServiceCategoriesScreen({navigation}: any) {
       <View style={[styles.container, styles.centerContent, {backgroundColor: theme.background}]}>
         <ActivityIndicator size="large" color={theme.primary} />
         <Text style={[styles.loadingText, {color: theme.textSecondary}]}>
-          Loading categories...
+          {t('serviceCategories.loadingCategories')}
         </Text>
       </View>
     );
@@ -539,10 +544,10 @@ export default function AdminServiceCategoriesScreen({navigation}: any) {
           <View style={styles.emptyContainer}>
             <Icon name="category" size={64} color={theme.textSecondary} />
             <Text style={[styles.emptyText, {color: theme.textSecondary}]}>
-              No service categories found
+              {t('serviceCategories.noCategoriesFound')}
             </Text>
             <Text style={[styles.emptySubtext, {color: theme.textSecondary}]}>
-              Tap the + button to add a new category
+              {t('serviceCategories.tapToAddCategory')}
             </Text>
           </View>
         }

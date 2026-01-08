@@ -5,13 +5,14 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   ActivityIndicator,
   TextInput,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import firestore from '@react-native-firebase/firestore';
 import {useStore} from '../store';
+import useTranslation from '../hooks/useTranslation';
+import AlertModal from '../components/AlertModal';
 import type {User} from '../types/consultation';
 
 interface Customer extends User {
@@ -69,11 +70,29 @@ export default function AdminCustomersListScreen({navigation}: any) {
   const [loadingJobCards, setLoadingJobCards] = useState<{[key: string]: boolean}>({});
   const [expandedJobCards, setExpandedJobCards] = useState<string | null>(null);
   const {currentUser} = useStore();
+  const {t} = useTranslation();
+  
+  const [alertModal, setAlertModal] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    type: 'success' | 'error' | 'info' | 'warning';
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+    type: 'info',
+  });
 
   useEffect(() => {
     // SECURITY: Verify current user is admin
     if (currentUser?.role !== 'admin') {
-      Alert.alert('Access Denied', 'Only administrators can access this screen.');
+      setAlertModal({
+        visible: true,
+        title: t('common.accessDenied'),
+        message: t('common.onlyAdminAccess'),
+        type: 'error',
+      });
       navigation.goBack();
       return;
     }
@@ -110,7 +129,12 @@ export default function AdminCustomersListScreen({navigation}: any) {
                 setLoading(false);
               },
               error => {
-                Alert.alert('Error', 'Failed to load customers. Please try again.');
+                setAlertModal({
+                  visible: true,
+                  title: t('common.error'),
+                  message: t('customers.failedToLoad'),
+                  type: 'error',
+                });
                 setLoading(false);
               },
             );
@@ -199,7 +223,7 @@ export default function AdminCustomersListScreen({navigation}: any) {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color="#FF9500" />
-        <Text style={styles.loadingText}>Loading customers...</Text>
+        <Text style={styles.loadingText}>{t('customers.loading')}</Text>
       </View>
     );
   }
@@ -208,8 +232,8 @@ export default function AdminCustomersListScreen({navigation}: any) {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Customer Management</Text>
-        <Text style={styles.headerSubtitle}>{customers.length} total customers</Text>
+        <Text style={styles.headerTitle}>{t('customers.customerManagement')}</Text>
+        <Text style={styles.headerSubtitle}>{t('customers.totalCustomers', {count: customers.length})}</Text>
       </View>
 
       {/* Search */}
@@ -218,7 +242,7 @@ export default function AdminCustomersListScreen({navigation}: any) {
           <Icon name="search" size={20} color="#8E8E93" />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search by name, email, or phone..."
+            placeholder={t('customers.searchPlaceholder')}
             value={searchQuery}
             onChangeText={setSearchQuery}
             placeholderTextColor="#8E8E93"
@@ -231,7 +255,7 @@ export default function AdminCustomersListScreen({navigation}: any) {
         {filteredCustomers.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Icon name="people-outline" size={64} color="#ccc" />
-            <Text style={styles.emptyText}>No customers found</Text>
+            <Text style={styles.emptyText}>{t('customers.noCustomersFound')}</Text>
           </View>
         ) : (
           filteredCustomers.map(customer => {
@@ -248,7 +272,7 @@ export default function AdminCustomersListScreen({navigation}: any) {
                   </View>
                   <View style={styles.customerDetails}>
                     <View style={styles.customerHeader}>
-                      <Text style={styles.customerName}>{customer.name || 'No name'}</Text>
+                      <Text style={styles.customerName}>{customer.name || t('customers.noName')}</Text>
                       <Icon
                         name={isExpanded ? "expand-less" : "expand-more"}
                         size={24}
@@ -276,7 +300,7 @@ export default function AdminCustomersListScreen({navigation}: any) {
                         {customer.secondaryPhone && (
                           <View style={styles.phoneRow}>
                             <Text style={styles.customerPhone}>
-                              Secondary: {customer.secondaryPhone}
+                              {t('customers.secondary')}: {customer.secondaryPhone}
                             </Text>
                             {customer.secondaryPhoneVerified && (
                               <Icon
@@ -331,7 +355,7 @@ export default function AdminCustomersListScreen({navigation}: any) {
                           <View style={styles.detailRow}>
                             <Icon name="phone" size={16} color="#8E8E93" />
                             <Text style={styles.detailText}>
-                              Secondary: {customer.secondaryPhone}
+                              {t('customers.secondary')}: {customer.secondaryPhone}
                             </Text>
                             {customer.secondaryPhoneVerified && (
                               <Icon
@@ -347,7 +371,7 @@ export default function AdminCustomersListScreen({navigation}: any) {
                           <View style={styles.detailRow}>
                             <Icon name="home" size={16} color="#8E8E93" />
                             <Text style={styles.detailText}>
-                              Home: {customer.homeAddress.address}
+                              {t('customers.home')}: {customer.homeAddress.address}
                               {customer.homeAddress.city && `, ${customer.homeAddress.city}`}
                               {customer.homeAddress.pincode && ` - ${customer.homeAddress.pincode}`}
                             </Text>
@@ -357,7 +381,7 @@ export default function AdminCustomersListScreen({navigation}: any) {
                           <View style={styles.detailRow}>
                             <Icon name="business" size={16} color="#8E8E93" />
                             <Text style={styles.detailText}>
-                              Office: {customer.officeAddress.address}
+                              {t('customers.office')}: {customer.officeAddress.address}
                               {customer.officeAddress.city && `, ${customer.officeAddress.city}`}
                               {customer.officeAddress.pincode && ` - ${customer.officeAddress.pincode}`}
                             </Text>
@@ -391,7 +415,7 @@ export default function AdminCustomersListScreen({navigation}: any) {
                             <View style={styles.jobCardsHeaderLeft}>
                               <Icon name="work" size={18} color="#FF9500" />
                               <Text style={styles.jobCardsTitle}>
-                                Job Cards ({customerJobCards[customer.id]?.length || 0})
+                                {t('customers.jobCards')} ({customerJobCards[customer.id]?.length || 0})
                               </Text>
                             </View>
                             <Icon
@@ -406,7 +430,7 @@ export default function AdminCustomersListScreen({navigation}: any) {
                               {loadingJobCards[customer.id] ? (
                                 <View style={styles.jobCardsLoading}>
                                   <ActivityIndicator size="small" color="#FF9500" />
-                                  <Text style={styles.jobCardsLoadingText}>Loading job cards...</Text>
+                                  <Text style={styles.jobCardsLoadingText}>{t('jobCards.loading')}</Text>
                                 </View>
                               ) : customerJobCards[customer.id]?.length > 0 ? (
                                 customerJobCards[customer.id].map(jobCard => {
@@ -422,38 +446,38 @@ export default function AdminCustomersListScreen({navigation}: any) {
                                           <View style={[styles.jobCardStatusBadge, {backgroundColor: statusColor + '20'}]}>
                                             <Icon name={statusIcon} size={14} color={statusColor} />
                                             <Text style={[styles.jobCardStatusText, {color: statusColor}]}>
-                                              {jobCard.status === 'in-progress' ? 'In Progress' : jobCard.status.charAt(0).toUpperCase() + jobCard.status.slice(1)}
+                                              {jobCard.status === 'in-progress' ? t('jobCards.inProgress') : t(`jobCards.${jobCard.status}`)}
                                             </Text>
                                           </View>
                                         </View>
                                       </View>
                                       {jobCard.providerName && (
                                         <Text style={styles.jobCardDetail}>
-                                          Provider: {jobCard.providerName}
+                                          {t('jobCards.providerName')}: {jobCard.providerName}
                                         </Text>
                                       )}
                                       {jobCard.problem && (
                                         <Text style={styles.jobCardDetail}>
-                                          Problem: {jobCard.problem}
+                                          {t('jobCards.problem')}: {jobCard.problem}
                                         </Text>
                                       )}
                                       {jobCard.customerAddress && (
                                         <Text style={styles.jobCardDetail}>
-                                          Address: {jobCard.customerAddress.address}
+                                          {t('customers.address')}: {jobCard.customerAddress.address}
                                           {jobCard.customerAddress.city && `, ${jobCard.customerAddress.city}`}
                                           {jobCard.customerAddress.pincode && ` - ${jobCard.customerAddress.pincode}`}
                                         </Text>
                                       )}
                                       {jobCard.createdAt && (
                                         <Text style={styles.jobCardDate}>
-                                          Created: {jobCard.createdAt.toLocaleDateString()} {jobCard.createdAt.toLocaleTimeString()}
+                                          {t('jobCards.created')}: {jobCard.createdAt.toLocaleDateString()} {jobCard.createdAt.toLocaleTimeString()}
                                         </Text>
                                       )}
                                     </View>
                                   );
                                 })
                               ) : (
-                                <Text style={styles.jobCardsEmpty}>No job cards found</Text>
+                                <Text style={styles.jobCardsEmpty}>{t('jobCards.noJobCards')}</Text>
                               )}
                             </View>
                           )}
@@ -467,6 +491,14 @@ export default function AdminCustomersListScreen({navigation}: any) {
           })
         )}
       </ScrollView>
+      
+      <AlertModal
+        visible={alertModal.visible}
+        title={alertModal.title}
+        message={alertModal.message}
+        type={alertModal.type}
+        onClose={() => setAlertModal({visible: false, title: '', message: '', type: 'info'})}
+      />
     </View>
   );
 }
