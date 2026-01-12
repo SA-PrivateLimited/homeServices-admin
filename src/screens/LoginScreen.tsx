@@ -15,6 +15,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import {useStore} from '../store';
 import {lightTheme, darkTheme, commonStyles} from '../utils/theme';
 import authService from '../services/authService';
+import adminAuthService from '../services/adminAuthService';
 
 interface LoginScreenProps {
   navigation: any;
@@ -93,7 +94,33 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
   const handleGoogleSignIn = async () => {
     setLoading(true);
     try {
+      console.log('🔵 [ADMIN LOGIN] Starting Google Sign-In...');
       const user = await authService.signInWithGoogle();
+      console.log('✅ [ADMIN LOGIN] Google Sign-In successful:', {
+        userId: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+      });
+
+      // Verify admin access using admin auth service
+      if (user.email) {
+        const hasAdminAccess = await adminAuthService.verifyAdminAccess(user.email);
+        if (!hasAdminAccess) {
+          // Grant admin access if email is authorized
+          try {
+            await adminAuthService.grantAdminAccess(user.email);
+            console.log('✅ [ADMIN LOGIN] Admin access granted to:', user.email);
+          } catch (grantError: any) {
+            console.warn('⚠️ [ADMIN LOGIN] Could not grant admin access:', grantError.message);
+            Alert.alert(
+              'Access Denied',
+              'This email is not authorized for admin access. Please contact an administrator.',
+            );
+            return;
+          }
+        }
+      }
 
       // Set role as 'admin' for HomeServicesAdmin app
       const userWithRole = {
@@ -104,25 +131,48 @@ const LoginScreen: React.FC<LoginScreenProps> = ({navigation}) => {
       // Update user role in Firestore if needed
       if (user.role !== 'admin') {
         try {
+          console.log('📝 [ADMIN LOGIN] Updating user role to admin...');
           await authService.updateUserRole(user.id, 'admin');
           userWithRole.role = 'admin';
-        } catch (error) {
+          console.log('✅ [ADMIN LOGIN] User role updated to admin');
+        } catch (error: any) {
           // Role update failed, but continue with login
-          console.warn('Failed to update user role:', error);
+          console.warn('⚠️ [ADMIN LOGIN] Failed to update user role:', error.message || error);
         }
       }
 
-      setCurrentUser(userWithRole);
+      console.log('💾 [ADMIN LOGIN] Setting current user in store...');
+      await setCurrentUser(userWithRole);
+      console.log('✅ [ADMIN LOGIN] User set in store, navigating to AdminMain...');
+      
       navigation.reset({
         index: 0,
         routes: [{name: 'AdminMain'}],
       });
     } catch (error: any) {
+      console.error('❌ [ADMIN LOGIN] Google Sign-In error:', {
+        code: error.code,
+        message: error.message,
+        error: error,
+      });
+      
       if (error.message?.includes('cancelled')) {
         // User cancelled, don't show error
+        console.log('ℹ️ [ADMIN LOGIN] User cancelled Google Sign-In');
         return;
       }
-      Alert.alert('Error', error.message || 'Failed to sign in with Google');
+      
+      // Show detailed error message
+      let errorMessage = error.message || 'Failed to sign in with Google';
+      if (error.code === 'DEVELOPER_ERROR') {
+        errorMessage = 'Google Sign-In configuration error. Please check SHA-1 fingerprint in Firebase Console.';
+      } else if (error.code === 'auth/invalid-credential') {
+        errorMessage = 'Invalid Google credential. Please try again.';
+      } else if (error.code === 'auth/account-exists-with-different-credential') {
+        errorMessage = 'An account already exists with this email using a different sign-in method.';
+      }
+      
+      Alert.alert('Login Error', errorMessage);
     } finally {
       setLoading(false);
     }

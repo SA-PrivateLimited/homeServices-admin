@@ -1,3 +1,5 @@
+- Downloading configuration data of your Firebase ANDROID app
+✔ Downloading configuration data of your Firebase ANDROID app
 {
   "project_info": {
     "project_number": "425944993130",
@@ -20,6 +22,14 @@
           "android_info": {
             "package_name": "com.homeservices.admin",
             "certificate_hash": "44f39ca308f51813b8e444a172f7dee65d61921a"
+          }
+        },
+        {
+          "client_id": "425944993130-66edmu80g5c1o778ejbhdashrtl5k0oj.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.homeservices.admin",
+            "certificate_hash": "3fb539ad690adca1e59c07785778ddb770e9344e"
           }
         },
         {
@@ -65,6 +75,14 @@
           "android_info": {
             "package_name": "com.homeservices.customer",
             "certificate_hash": "f1512e11065ff826b4eed6b1a29b73e94d6c68ae"
+          }
+        },
+        {
+          "client_id": "425944993130-f8stosi4ks5fumqoikrmpar4uihvmu5e.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.homeservices.customer",
+            "certificate_hash": "3fb539ad690adca1e59c07785778ddb770e9344e"
           }
         },
         {

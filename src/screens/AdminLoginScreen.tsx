@@ -7,9 +7,8 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from 'react-native';
-import auth from '@react-native-firebase/auth';
-import firestore from '@react-native-firebase/firestore';
 import {useStore} from '../store';
+import adminAuthService from '../services/adminAuthService';
 
 export default function AdminLoginScreen({navigation}: any) {
   const [email, setEmail] = useState('');
@@ -28,57 +27,45 @@ export default function AdminLoginScreen({navigation}: any) {
 
     setLoading(true);
     try {
-      // Authenticate with Firebase
-      const userCredential = await auth().signInWithEmailAndPassword(email, password);
-
-      // Get user data from Firestore
-      const userDoc = await firestore()
-        .collection('users')
-        .doc(userCredential.user.uid)
-        .get();
-
-      let userData: any = {
-        id: userCredential.user.uid,
-        email: userCredential.user.email || email,
-        name: userCredential.user.displayName || 'Admin',
-        phone: userCredential.user.phoneNumber || '',
-        role: 'admin' as const,
-      };
-
-      if (userDoc.exists) {
-        userData = {
-          ...userData,
-          ...userDoc.data(),
-          role: userDoc.data()?.role || 'admin',
-        };
-      } else {
-        // Create admin user document if it doesn't exist
-        await firestore()
-          .collection('users')
-          .doc(userCredential.user.uid)
-          .set({
-            ...userData,
-            createdAt: firestore.FieldValue.serverTimestamp(),
-          }, {merge: true});
-      }
+      console.log('🔐 [ADMIN LOGIN] Attempting admin login for:', email);
+      
+      // Use admin authentication service which verifies admin access
+      const userData = await adminAuthService.loginAsAdmin(email, password);
+      
+      console.log('✅ [ADMIN LOGIN] Admin login successful:', {
+        userId: userData.id,
+        email: userData.email,
+        role: userData.role,
+      });
 
       await setCurrentUser(userData);
 
       // Navigate to AdminMain
       navigation.replace('AdminMain');
-    } catch (firebaseError: any) {
+    } catch (loginError: any) {
+      console.error('❌ [ADMIN LOGIN] Login error:', {
+        code: loginError.code,
+        message: loginError.message,
+        error: loginError,
+      });
 
       // Provide helpful error messages
-      let errorMessage = 'Login failed. Please try again.';
+      let errorMessage = loginError.message || 'Login failed. Please try again.';
 
-      if (firebaseError.code === 'auth/user-not-found') {
-        errorMessage = 'User not found. Please create an admin account in Firebase Console.';
-      } else if (firebaseError.code === 'auth/wrong-password') {
+      if (loginError.message?.includes('Access denied')) {
+        errorMessage = 'Access denied. This email is not authorized for admin access.';
+      } else if (loginError.message?.includes('User not found')) {
+        errorMessage = 'User not found. Please create an admin account first.';
+      } else if (loginError.message?.includes('Incorrect password')) {
         errorMessage = 'Incorrect password. Please try again.';
-      } else if (firebaseError.code === 'auth/invalid-email') {
+      } else if (loginError.message?.includes('Invalid email')) {
         errorMessage = 'Invalid email format.';
-      } else if (firebaseError.message) {
-        errorMessage = firebaseError.message;
+      } else if (loginError.code === 'auth/network-request-failed') {
+        errorMessage = 'Network error. Please check your internet connection.';
+      } else if (loginError.code === 'auth/too-many-requests') {
+        errorMessage = 'Too many failed login attempts. Please try again later.';
+      } else if (loginError.code === 'auth/user-disabled') {
+        errorMessage = 'This account has been disabled. Please contact support.';
       }
 
       setError(errorMessage);
