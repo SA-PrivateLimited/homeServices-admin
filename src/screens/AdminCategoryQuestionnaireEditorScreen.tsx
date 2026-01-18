@@ -45,30 +45,41 @@ export default function AdminCategoryQuestionnaireEditorScreen({
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
   // Form state
-  const [question, setQuestion] = useState('');
+  const [question, setQuestion] = useState(''); // English question
+  const [questionHi, setQuestionHi] = useState(''); // Hindi question
   const [type, setType] = useState<'text' | 'number' | 'select' | 'multiselect' | 'boolean'>('text');
   const [required, setRequired] = useState(true);
-  const [placeholder, setPlaceholder] = useState('');
-  const [options, setOptions] = useState<string[]>([]);
-  const [optionInput, setOptionInput] = useState('');
+  const [placeholder, setPlaceholder] = useState(''); // English placeholder
+  const [placeholderHi, setPlaceholderHi] = useState(''); // Hindi placeholder
+  const [options, setOptions] = useState<string[]>([]); // English options
+  const [optionsHi, setOptionsHi] = useState<string[]>([]); // Hindi options
+  const [optionInput, setOptionInput] = useState(''); // English option input
+  const [optionInputHi, setOptionInputHi] = useState(''); // Hindi option input
 
   const resetForm = () => {
     setQuestion('');
+    setQuestionHi('');
     setType('text');
     setRequired(true);
     setPlaceholder('');
+    setPlaceholderHi('');
     setOptions([]);
+    setOptionsHi([]);
     setOptionInput('');
+    setOptionInputHi('');
     setEditingIndex(null);
   };
 
   const handleEdit = (index: number) => {
     const q = questions[index];
-    setQuestion(q.question);
+    setQuestion(q.question || '');
+    setQuestionHi(q.questionHi || '');
     setType(q.type);
     setRequired(q.required);
     setPlaceholder(q.placeholder || '');
+    setPlaceholderHi(q.placeholderHi || '');
     setOptions(q.options || []);
+    setOptionsHi(q.optionsHi || []);
     setEditingIndex(index);
   };
 
@@ -91,22 +102,31 @@ export default function AdminCategoryQuestionnaireEditorScreen({
 
   const handleAddOrUpdateQuestion = () => {
     if (!question.trim()) {
-      Alert.alert('Error', 'Please enter a question');
+      Alert.alert('Error', 'Please enter a question in English (required)');
       return;
     }
 
     if ((type === 'select' || type === 'multiselect') && options.length === 0) {
-      Alert.alert('Error', 'Please add at least one option');
+      Alert.alert('Error', 'Please add at least one option in English');
+      return;
+    }
+
+    // Validation: If Hindi question is provided, Hindi options should also be provided for select/multiselect
+    if ((type === 'select' || type === 'multiselect') && questionHi.trim() && optionsHi.length === 0) {
+      Alert.alert('Error', 'Please add Hindi options if Hindi question is provided');
       return;
     }
 
     const newQuestion: QuestionnaireQuestion = {
       id: editingIndex !== null ? questions[editingIndex].id : `q_${Date.now()}`,
       question: question.trim(),
+      questionHi: questionHi.trim() || undefined,
       type,
       required,
       placeholder: placeholder.trim() || undefined,
+      placeholderHi: placeholderHi.trim() || undefined,
       options: (type === 'select' || type === 'multiselect') ? options : undefined,
+      optionsHi: (type === 'select' || type === 'multiselect' && questionHi.trim() && optionsHi.length > 0) ? optionsHi : undefined,
     };
 
     if (editingIndex !== null) {
@@ -130,8 +150,26 @@ export default function AdminCategoryQuestionnaireEditorScreen({
     setOptionInput('');
   };
 
+  const handleAddOptionHi = () => {
+    if (!optionInputHi.trim()) return;
+    if (optionsHi.includes(optionInputHi.trim())) {
+      Alert.alert('Error', 'This Hindi option already exists');
+      return;
+    }
+    setOptionsHi([...optionsHi, optionInputHi.trim()]);
+    setOptionInputHi('');
+  };
+
   const handleRemoveOption = (index: number) => {
     setOptions(options.filter((_, i) => i !== index));
+    // Remove corresponding Hindi option if it exists
+    if (optionsHi.length > index) {
+      setOptionsHi(optionsHi.filter((_, i) => i !== index));
+    }
+  };
+
+  const handleRemoveOptionHi = (index: number) => {
+    setOptionsHi(optionsHi.filter((_, i) => i !== index));
   };
 
   const handleSave = () => {
@@ -148,12 +186,22 @@ export default function AdminCategoryQuestionnaireEditorScreen({
             {editingIndex !== null ? 'Edit Question' : 'Add Question'}
           </Text>
 
-          <Text style={[styles.label, {color: theme.text}]}>Question *</Text>
+          <Text style={[styles.label, {color: theme.text}]}>Question (English) *</Text>
           <TextInput
             style={[styles.input, {backgroundColor: theme.background, color: theme.text}]}
             value={question}
             onChangeText={setQuestion}
-            placeholder="Enter your question"
+            placeholder="Enter your question in English"
+            placeholderTextColor={theme.textSecondary}
+            multiline
+          />
+
+          <Text style={[styles.label, {color: theme.text}]}>Question (Hindi) - Optional</Text>
+          <TextInput
+            style={[styles.input, {backgroundColor: theme.background, color: theme.text}]}
+            value={questionHi}
+            onChangeText={setQuestionHi}
+            placeholder="Enter your question in Hindi (optional)"
             placeholderTextColor={theme.textSecondary}
             multiline
           />
@@ -188,18 +236,27 @@ export default function AdminCategoryQuestionnaireEditorScreen({
             ))}
           </ScrollView>
 
-          <Text style={[styles.label, {color: theme.text}]}>Placeholder</Text>
+          <Text style={[styles.label, {color: theme.text}]}>Placeholder (English)</Text>
           <TextInput
             style={[styles.input, {backgroundColor: theme.background, color: theme.text}]}
             value={placeholder}
             onChangeText={setPlaceholder}
-            placeholder="Enter placeholder text (optional)"
+            placeholder="Enter placeholder text in English (optional)"
+            placeholderTextColor={theme.textSecondary}
+          />
+
+          <Text style={[styles.label, {color: theme.text}]}>Placeholder (Hindi) - Optional</Text>
+          <TextInput
+            style={[styles.input, {backgroundColor: theme.background, color: theme.text}]}
+            value={placeholderHi}
+            onChangeText={setPlaceholderHi}
+            placeholder="Enter placeholder text in Hindi (optional)"
             placeholderTextColor={theme.textSecondary}
           />
 
           {(type === 'select' || type === 'multiselect') && (
             <>
-              <Text style={[styles.label, {color: theme.text}]}>Options</Text>
+              <Text style={[styles.label, {color: theme.text}]}>Options (English) *</Text>
               <View style={styles.optionInputContainer}>
                 <TextInput
                   style={[
@@ -209,7 +266,7 @@ export default function AdminCategoryQuestionnaireEditorScreen({
                   ]}
                   value={optionInput}
                   onChangeText={setOptionInput}
-                  placeholder="Enter an option"
+                  placeholder="Enter an option in English"
                   placeholderTextColor={theme.textSecondary}
                   onSubmitEditing={handleAddOption}
                 />
@@ -221,12 +278,55 @@ export default function AdminCategoryQuestionnaireEditorScreen({
               </View>
               {options.map((opt, idx) => (
                 <View key={idx} style={[styles.optionChip, {backgroundColor: theme.background}]}>
-                  <Text style={[styles.optionChipText, {color: theme.text}]}>{opt}</Text>
+                  <View style={styles.optionChipContent}>
+                    <Text style={[styles.optionChipText, {color: theme.text}]}>{opt}</Text>
+                    {optionsHi[idx] && (
+                      <Text style={[styles.optionChipTextHi, {color: theme.textSecondary}]}>
+                        ({optionsHi[idx]})
+                      </Text>
+                    )}
+                  </View>
                   <TouchableOpacity onPress={() => handleRemoveOption(idx)}>
                     <Icon name="close" size={18} color={theme.textSecondary} />
                   </TouchableOpacity>
                 </View>
               ))}
+
+              {questionHi.trim() && (
+                <>
+                  <Text style={[styles.label, {color: theme.text, marginTop: 16}]}>Options (Hindi) - Optional</Text>
+                  <Text style={[styles.hintText, {color: theme.textSecondary}]}>
+                    Add Hindi options in the same order as English options
+                  </Text>
+                  <View style={styles.optionInputContainer}>
+                    <TextInput
+                      style={[
+                        styles.input,
+                        styles.optionInput,
+                        {backgroundColor: theme.background, color: theme.text},
+                      ]}
+                      value={optionInputHi}
+                      onChangeText={setOptionInputHi}
+                      placeholder="Enter an option in Hindi"
+                      placeholderTextColor={theme.textSecondary}
+                      onSubmitEditing={handleAddOptionHi}
+                    />
+                    <TouchableOpacity
+                      style={[styles.addOptionButton, {backgroundColor: theme.primary}]}
+                      onPress={handleAddOptionHi}>
+                      <Icon name="add" size={20} color="#fff" />
+                    </TouchableOpacity>
+                  </View>
+                  {optionsHi.map((opt, idx) => (
+                    <View key={idx} style={[styles.optionChip, {backgroundColor: theme.background}]}>
+                      <Text style={[styles.optionChipText, {color: theme.text}]}>{opt}</Text>
+                      <TouchableOpacity onPress={() => handleRemoveOptionHi(idx)}>
+                        <Icon name="close" size={18} color={theme.textSecondary} />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </>
+              )}
             </>
           )}
 
@@ -290,6 +390,11 @@ export default function AdminCategoryQuestionnaireEditorScreen({
                       {q.question}
                       {q.required && <Text style={styles.required}> *</Text>}
                     </Text>
+                    {q.questionHi && (
+                      <Text style={[styles.questionTextHi, {color: theme.textSecondary}]}>
+                        {q.questionHi}
+                      </Text>
+                    )}
                     <View style={styles.questionMeta}>
                       <View style={[styles.typeBadge, {backgroundColor: theme.primary + '20'}]}>
                         <Text style={[styles.typeText, {color: theme.primary}]}>{q.type}</Text>
@@ -297,6 +402,7 @@ export default function AdminCategoryQuestionnaireEditorScreen({
                       {q.options && (
                         <Text style={[styles.optionsCount, {color: theme.textSecondary}]}>
                           {q.options.length} options
+                          {q.optionsHi && q.optionsHi.length > 0 && ' (Hindi available)'}
                         </Text>
                       )}
                     </View>
@@ -423,9 +529,22 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginTop: 8,
   },
+  optionChipContent: {
+    flexDirection: 'column',
+    flex: 1,
+    gap: 4,
+  },
   optionChipText: {
     fontSize: 14,
-    flex: 1,
+  },
+  optionChipTextHi: {
+    fontSize: 12,
+    fontStyle: 'italic',
+  },
+  hintText: {
+    fontSize: 12,
+    marginBottom: 8,
+    fontStyle: 'italic',
   },
   switchContainer: {
     flexDirection: 'row',
@@ -499,7 +618,13 @@ const styles = StyleSheet.create({
   },
   questionText: {
     fontSize: 15,
+    marginBottom: 4,
+  },
+  questionTextHi: {
+    fontSize: 13,
     marginBottom: 8,
+    fontStyle: 'italic',
+    color: '#666',
   },
   required: {
     color: '#FF3B30',

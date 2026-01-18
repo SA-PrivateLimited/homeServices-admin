@@ -9,22 +9,16 @@ import {
   Image,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import firestore from '@react-native-firebase/firestore';
 import useTranslation from '../hooks/useTranslation';
 import AlertModal from '../components/AlertModal';
 import ConfirmationModal from '../components/ConfirmationModal';
+import {providersApi, Provider as ApiProvider} from '../services/api/providersApi';
 
-interface Provider {
+type Provider = ApiProvider & {
   id: string;
   name: string;
-  serviceType?: string; // Service type (carpenter, electrician, plumber, etc.)
-  email: string;
+  serviceType?: string;
   phone: string;
-  experience?: number;
-  profileImage?: string;
-  verified?: boolean;
-  approved?: boolean;
-  rating?: number;
   address?: {
     type: 'home' | 'office';
     address: string;
@@ -34,12 +28,7 @@ interface Provider {
     latitude?: number;
     longitude?: number;
   };
-  documents?: {
-    idProof?: string;
-    addressProof?: string;
-    certificate?: string;
-  };
-}
+};
 
 export default function AdminProvidersListScreen({navigation}: any) {
   const [providers, setProviders] = useState<Provider[]>([]);
@@ -73,82 +62,48 @@ export default function AdminProvidersListScreen({navigation}: any) {
   });
 
   useEffect(() => {
-    let unsubscribe: (() => void) | null = null;
-    let retryCount = 0;
-    const maxRetries = 20;
-    let timeoutId: NodeJS.Timeout | null = null;
-
-    const tryFetch = () => {
-      try {
-        const providersRef = firestore().collection('providers');
-        
-        unsubscribe = providersRef.onSnapshot(
-          snapshot => {
-            const providersList = snapshot.docs.map(doc => ({
-              id: doc.id,
-              ...doc.data(),
-            })) as Provider[];
-            setProviders(providersList);
-            setLoading(false);
-            setError(null);
-          },
-          error => {
-            if (error.message?.includes('No Firebase App') && retryCount < maxRetries) {
-              retryCount++;
-              timeoutId = setTimeout(tryFetch, 200);
-              return;
-            }
-            setError(error.message || t('providers.failedToLoad'));
-            setLoading(false);
-          },
-        );
-      } catch (error: any) {
-        if (error.message?.includes('No Firebase App') && retryCount < maxRetries) {
-          retryCount++;
-          timeoutId = setTimeout(tryFetch, 200);
-        } else {
-          setError(error.message || 'Firebase not initialized');
-          setLoading(false);
-        }
-      }
-    };
-
-    timeoutId = setTimeout(tryFetch, 500);
-
-    return () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-      if (unsubscribe) {
-        unsubscribe();
-      }
-    };
+    loadProviders();
   }, []);
 
+  const loadProviders = async () => {
+    try {
+      setLoading(true);
+      const providersList = await providersApi.getAll();
+      // Map API response to component format
+      const mappedProviders: Provider[] = providersList.map(provider => ({
+        ...provider,
+        id: provider._id || provider.id || '',
+        name: provider.name || provider.displayName || '',
+        serviceType: provider.serviceType || provider.specialization || provider.serviceCategories?.[0] || '',
+        phone: provider.phone || provider.phoneNumber || '',
+        address: provider.address || provider.location ? {
+          type: (provider.address?.type || 'home') as 'home' | 'office',
+          address: provider.address?.address || provider.location?.address || '',
+          city: provider.address?.city || provider.location?.city,
+          state: provider.address?.state || provider.location?.state,
+          pincode: provider.address?.pincode || provider.location?.pincode || '',
+          latitude: provider.address?.latitude || provider.location?.latitude,
+          longitude: provider.address?.longitude || provider.location?.longitude,
+        } : undefined,
+      }));
+      setProviders(mappedProviders);
+      setLoading(false);
+      setError(null);
+    } catch (error: any) {
+      console.error('Error loading providers:', error);
+      setError(error.message || t('providers.failedToLoad'));
+      setLoading(false);
+    }
+  };
+
   const handleDelete = (providerId: string, providerName: string) => {
-    setConfirmationModal({
+    // Note: DELETE endpoint not yet implemented in backend
+    // For now, we can reject/approve providers instead
+    setAlertModal({
       visible: true,
-      title: t('providers.deleteProvider'),
-      message: t('providers.deleteProviderConfirm', {name: providerName}),
-      onConfirm: async () => {
-        setConfirmationModal({visible: false, title: '', message: '', onConfirm: () => {}});
-        try {
-          await firestore().collection('providers').doc(providerId).delete();
-          setAlertModal({
-            visible: true,
-            title: t('common.success'),
-            message: t('providers.providerDeleted'),
-            type: 'success',
-          });
-        } catch (error: any) {
-          setAlertModal({
-            visible: true,
-            title: t('common.error'),
-            message: error.message || t('providers.failedToDelete'),
-            type: 'error',
-          });
-        }
-      },
+      title: t('common.info'),
+      message: 'Provider deletion is not yet available. Please use the approval status to manage providers.',
+      type: 'info',
     });
   };
 
@@ -166,10 +121,37 @@ export default function AdminProvidersListScreen({navigation}: any) {
     }
   };
 
+  const getStatusColor = (status?: string) => {
+    switch (status) {
+      case 'approved':
+        return '#34C759';
+      case 'rejected':
+        return '#FF3B30';
+      case 'pending':
+      default:
+        return '#FF9500';
+    }
+  };
+
+  const getStatusIcon = (status?: string) => {
+    switch (status) {
+      case 'approved':
+        return 'check-circle';
+      case 'rejected':
+        return 'cancel';
+      case 'pending':
+      default:
+        return 'hourglass-empty';
+    }
+  };
+
   const renderProvider = ({item}: {item: Provider}) => {
     const serviceType = item.serviceType || t('providers.generalService');
     const photo = item.profileImage;
     const rating = item.rating || 0;
+    const status = item.approvalStatus || (item.approved ? 'approved' : 'pending');
+    const statusColor = getStatusColor(status);
+    const statusIcon = getStatusIcon(status);
     
     const hasValidImage = photo && 
       typeof photo === 'string' && 
@@ -206,14 +188,19 @@ export default function AdminProvidersListScreen({navigation}: any) {
             {item.verified && (
               <Icon name="verified" size={18} color="#4CAF50" style={styles.verifiedIcon} />
             )}
-            {item.approved && (
-              <Icon name="check-circle" size={18} color="#2196F3" style={styles.approvedIcon} />
-            )}
           </View>
-          <Text style={styles.serviceType}>{serviceType}</Text>
+          <View style={styles.statusRow}>
+            <Text style={styles.serviceType}>{serviceType}</Text>
+            <View style={[styles.statusBadge, {backgroundColor: statusColor + '20'}]}>
+              <Icon name={statusIcon} size={12} color={statusColor} />
+              <Text style={[styles.statusText, {color: statusColor}]}>
+                {t(`common.${status}`)}
+              </Text>
+            </View>
+          </View>
           {item.experience && (
             <Text style={styles.detail}>
-              {t('providers.experienceWithYears', {years: item.experience, count: item.experience})}
+              {t('providers.yearsExperience', {years: item.experience})}
             </Text>
           )}
           <Text style={styles.detail}>{t('providers.phone')}: {item.phone}</Text>
@@ -261,34 +248,7 @@ export default function AdminProvidersListScreen({navigation}: any) {
   }
 
   const handleRetry = () => {
-    setLoading(true);
-    setError(null);
-    setProviders([]);
-    setTimeout(() => {
-      try {
-        const unsubscribe = firestore()
-          .collection('providers')
-          .onSnapshot(
-            snapshot => {
-              const providersList = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-              })) as Provider[];
-              setProviders(providersList);
-              setLoading(false);
-              setError(null);
-            },
-            error => {
-              setError(error.message || t('providers.failedToLoad'));
-              setLoading(false);
-            },
-          );
-        return unsubscribe;
-      } catch (error: any) {
-        setError(error.message || 'Firebase not initialized');
-        setLoading(false);
-      }
-    }, 500);
+    loadProviders();
   };
 
   if (error) {
@@ -415,13 +375,28 @@ const styles = StyleSheet.create({
   verifiedIcon: {
     marginRight: 5,
   },
-  approvedIcon: {
-    marginRight: 5,
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 5,
+    gap: 8,
   },
   serviceType: {
     fontSize: 14,
     color: '#007AFF',
-    marginBottom: 5,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 10,
+    gap: 4,
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: '600',
+    textTransform: 'uppercase',
   },
   detail: {
     fontSize: 12,

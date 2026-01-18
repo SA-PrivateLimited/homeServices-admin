@@ -10,13 +10,16 @@ import {
 import auth from '@react-native-firebase/auth';
 import firestore from '@react-native-firebase/firestore';
 import {useStore} from '../store';
+import LanguageSwitcher from '../components/LanguageSwitcher';
+import {lightTheme, darkTheme} from '../utils/theme';
 
 export default function AdminLoginScreen({navigation}: any) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const {setCurrentUser} = useStore();
+  const {setCurrentUser, isDarkMode} = useStore();
+  const theme = isDarkMode ? darkTheme : lightTheme;
 
   const handleLogin = async () => {
     setError('');
@@ -88,15 +91,21 @@ export default function AdminLoginScreen({navigation}: any) {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>MediAdmin</Text>
-      <Text style={styles.subtitle}>Admin Portal</Text>
+    <View style={[styles.container, {backgroundColor: theme.background}]}>
+      {/* Language Switcher */}
+      <View style={styles.languageSwitcherContainer}>
+        <LanguageSwitcher compact />
+      </View>
+      
+      <Text style={[styles.title, {color: theme.text}]}>MediAdmin</Text>
+      <Text style={[styles.subtitle, {color: theme.textSecondary}]}>Admin Portal</Text>
 
-      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+      {error ? <Text style={[styles.errorText, {backgroundColor: theme.error + '20', borderColor: theme.error}]}>{error}</Text> : null}
 
       <TextInput
-        style={styles.input}
+        style={[styles.input, {backgroundColor: theme.card, borderColor: theme.border, color: theme.text}]}
         placeholder="Email"
+        placeholderTextColor={theme.textSecondary}
         value={email}
         onChangeText={setEmail}
         autoCapitalize="none"
@@ -104,15 +113,16 @@ export default function AdminLoginScreen({navigation}: any) {
       />
 
       <TextInput
-        style={styles.input}
+        style={[styles.input, {backgroundColor: theme.card, borderColor: theme.border, color: theme.text}]}
         placeholder="Password"
+        placeholderTextColor={theme.textSecondary}
         value={password}
         onChangeText={setPassword}
         secureTextEntry
       />
 
       <TouchableOpacity
-        style={styles.button}
+        style={[styles.button, {backgroundColor: theme.primary}]}
         onPress={handleLogin}
         disabled={loading}>
         {loading ? (
@@ -130,23 +140,25 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     padding: 20,
-    backgroundColor: '#f5f5f5',
+  },
+  languageSwitcherContainer: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    zIndex: 10,
   },
   title: {
     fontSize: 32,
     fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: 10,
-    color: '#007AFF',
   },
   subtitle: {
     fontSize: 18,
     textAlign: 'center',
     marginBottom: 40,
-    color: '#666',
   },
   errorText: {
-    backgroundColor: '#ffebee',
     color: '#c62828',
     padding: 12,
     borderRadius: 8,
@@ -154,19 +166,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 14,
     borderWidth: 1,
-    borderColor: '#ef9a9a',
   },
   input: {
-    backgroundColor: '#fff',
     padding: 15,
     borderRadius: 10,
     marginBottom: 15,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: '#ddd',
   },
   button: {
-    backgroundColor: '#007AFF',
     padding: 15,
     borderRadius: 10,
     alignItems: 'center',

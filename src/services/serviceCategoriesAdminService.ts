@@ -7,11 +7,14 @@ import firestore from '@react-native-firebase/firestore';
 
 export interface QuestionnaireQuestion {
   id: string;
-  question: string;
+  question: string; // English question (backward compatibility)
+  questionHi?: string; // Hindi question (optional)
   type: 'text' | 'number' | 'select' | 'multiselect' | 'boolean';
-  options?: string[]; // For select and multiselect types
+  options?: string[]; // English options for select and multiselect types (backward compatibility)
+  optionsHi?: string[]; // Hindi options for select and multiselect types (optional)
   required: boolean;
-  placeholder?: string;
+  placeholder?: string; // English placeholder (backward compatibility)
+  placeholderHi?: string; // Hindi placeholder (optional)
 }
 
 export interface ServiceCategory {
@@ -19,7 +22,8 @@ export interface ServiceCategory {
   name: string;
   icon: string; // Material icon name
   color: string; // Hex color code
-  description?: string;
+  description?: string; // English description
+  descriptionHi?: string; // Hindi description
   isActive: boolean;
   order: number; // Display order
   questionnaire?: QuestionnaireQuestion[]; // Questions for this service category

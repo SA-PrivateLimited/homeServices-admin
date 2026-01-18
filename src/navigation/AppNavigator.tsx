@@ -14,12 +14,10 @@ import RoleSelectionScreen from '../screens/RoleSelectionScreen';
 import AdminLoginScreen from '../screens/AdminLoginScreen';
 
 // Tab Navigators
-import MainTabs from './MainTabs'; // Patient tabs (existing)
-import DoctorTabNavigator from './DoctorTabNavigator'; // Doctor tabs (new)
+import MainTabs from './MainTabs'; // Main tabs (existing)
 import AdminTabNavigator from './AdminTabNavigator'; // Admin tabs (new)
 
 // Shared screens
-import AdminConsultationDetailScreen from '../screens/AdminConsultationDetailScreen';
 import AdminAddProviderScreen from '../screens/AdminAddProviderScreen';
 import AdminEditProviderScreen from '../screens/AdminEditProviderScreen';
 import AdminProviderApprovalsScreen from '../screens/AdminProviderApprovalsScreen';
@@ -108,26 +106,14 @@ export default function AppNavigator() {
         <Stack.Screen name="AdminLogin" component={AdminLoginScreen} options={{headerShown: true, title: 'Admin Login'}} />
         <Stack.Screen name="RoleSelection" component={RoleSelectionScreen} />
 
-        {/* Patient Navigation */}
+        {/* Main Navigation */}
         <Stack.Screen name="Main" component={MainTabs} />
-
-        {/* Doctor Navigation */}
-        <Stack.Screen name="DoctorMain" component={DoctorTabNavigator} />
 
         {/* Admin Navigation */}
         <Stack.Screen name="AdminMain" component={AdminTabNavigator} />
 
         {/* Shared Screens */}
-        <Stack.Screen
-          name="AdminConsultationDetail"
-          component={AdminConsultationDetailScreen}
-          options={{
-            headerShown: true,
-            title: 'Service Request Details',
-            headerStyle: {backgroundColor: theme.card},
-            headerTintColor: theme.text,
-          }}
-        />
+        {/* AdminConsultationDetail screen removed - consultations no longer used */}
         <Stack.Screen
           name="AddProvider"
           component={AdminAddProviderScreen}

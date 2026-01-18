@@ -5,6 +5,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import {useStore} from '../store';
 import {lightTheme, darkTheme} from '../utils/theme';
 import LanguageSwitcher from '../components/LanguageSwitcher';
+import useTranslation from '../hooks/useTranslation';
 
 import AdminProvidersListScreen from '../screens/AdminProvidersListScreen';
 import AdminSettingsScreen from '../screens/AdminSettingsScreen';
@@ -18,6 +19,7 @@ const Tab = createBottomTabNavigator();
 export default function AdminTabNavigator() {
   const {isDarkMode} = useStore();
   const theme = isDarkMode ? darkTheme : lightTheme;
+  const {t} = useTranslation();
 
   return (
     <Tab.Navigator
@@ -44,6 +46,7 @@ export default function AdminTabNavigator() {
           tabBarIcon: ({color, size}) => (
             <Icon name="handyman" size={size} color={color} />
           ),
+          tabBarLabel: t('common.providers'),
         }}
       />
       <Tab.Screen
@@ -53,6 +56,7 @@ export default function AdminTabNavigator() {
           tabBarIcon: ({color, size}) => (
             <Icon name="people" size={size} color={color} />
           ),
+          tabBarLabel: t('common.customers'),
         }}
       />
       <Tab.Screen
@@ -62,6 +66,7 @@ export default function AdminTabNavigator() {
           tabBarIcon: ({color, size}) => (
             <Icon name="verified-user" size={size} color={color} />
           ),
+          tabBarLabel: t('common.approvals'),
         }}
       />
       <Tab.Screen
@@ -71,6 +76,7 @@ export default function AdminTabNavigator() {
           tabBarIcon: ({color, size}) => (
             <Icon name="assignment" size={size} color={color} />
           ),
+          tabBarLabel: t('common.jobCards'),
         }}
       />
       <Tab.Screen
@@ -80,6 +86,7 @@ export default function AdminTabNavigator() {
           tabBarIcon: ({color, size}) => (
             <Icon name="receipt-long" size={size} color={color} />
           ),
+          tabBarLabel: t('common.orders'),
         }}
       />
       <Tab.Screen
@@ -89,6 +96,7 @@ export default function AdminTabNavigator() {
           tabBarIcon: ({color, size}) => (
             <Icon name="settings" size={size} color={color} />
           ),
+          tabBarLabel: t('common.settings'),
         }}
       />
     </Tab.Navigator>

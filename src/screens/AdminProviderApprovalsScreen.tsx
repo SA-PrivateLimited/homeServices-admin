@@ -5,7 +5,6 @@ import {
   FlatList,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   ActivityIndicator,
   Image,
   ScrollView,
@@ -16,6 +15,9 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import firestore from '@react-native-firebase/firestore';
 import auth from '@react-native-firebase/auth';
 import {useStore} from '../store';
+import ConfirmationModal from '../components/ConfirmationModal';
+import AlertModal from '../components/AlertModal';
+import useTranslation from '../hooks/useTranslation';
 
 interface Provider {
   id: string;
@@ -41,7 +43,21 @@ export default function AdminProviderApprovalsScreen({navigation}: any) {
   const [rejectModalVisible, setRejectModalVisible] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [approveModalVisible, setApproveModalVisible] = useState(false);
+  const [providerToApprove, setProviderToApprove] = useState<{id: string; name: string} | null>(null);
+  const [alertModal, setAlertModal] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    type: 'success' | 'error' | 'info' | 'warning';
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+    type: 'info',
+  });
   const {currentUser} = useStore();
+  const {t} = useTranslation();
 
   useEffect(() => {
     const unsubscribe = firestore()
@@ -67,34 +83,43 @@ export default function AdminProviderApprovalsScreen({navigation}: any) {
     return () => unsubscribe();
   }, []);
 
-  const handleApprove = async (providerId: string, providerName: string) => {
-    Alert.alert(
-      'Approve Provider',
-      `Approve ${providerName}? They will be able to accept service requests.`,
-      [
-        {text: 'Cancel', style: 'cancel'},
-        {
-          text: 'Approve',
-          onPress: async () => {
-            try {
-              const adminId = auth().currentUser?.uid || currentUser?.id;
-              await firestore().collection('providers').doc(providerId).update({
-                approvalStatus: 'approved',
-                approved: true,
-                verified: true,
-                approvedBy: adminId,
-                approvedAt: firestore.FieldValue.serverTimestamp(),
-                updatedAt: firestore.FieldValue.serverTimestamp(),
-              });
+  const handleApprove = (providerId: string, providerName: string) => {
+    setProviderToApprove({id: providerId, name: providerName});
+    setApproveModalVisible(true);
+  };
 
-              Alert.alert('Success', 'Provider approved successfully');
-            } catch (error: any) {
-              Alert.alert('Error', error.message || 'Failed to approve provider');
-            }
-          },
-        },
-      ],
-    );
+  const confirmApprove = async () => {
+    if (!providerToApprove) return;
+
+    try {
+      const adminId = auth().currentUser?.uid || currentUser?.id;
+      await firestore().collection('providers').doc(providerToApprove.id).update({
+        approvalStatus: 'approved',
+        approved: true,
+        verified: true,
+        approvedBy: adminId,
+        approvedAt: firestore.FieldValue.serverTimestamp(),
+        updatedAt: firestore.FieldValue.serverTimestamp(),
+      });
+
+      setApproveModalVisible(false);
+      setProviderToApprove(null);
+      setAlertModal({
+        visible: true,
+        title: t('common.success'),
+        message: t('providers.providerApproved'),
+        type: 'success',
+      });
+    } catch (error: any) {
+      setApproveModalVisible(false);
+      setProviderToApprove(null);
+      setAlertModal({
+        visible: true,
+        title: t('common.error'),
+        message: error.message || t('providers.failedToApprove'),
+        type: 'error',
+      });
+    }
   };
 
   const handleReject = (provider: Provider) => {
@@ -107,7 +132,12 @@ export default function AdminProviderApprovalsScreen({navigation}: any) {
     if (!selectedProvider) return;
 
     if (!rejectionReason || rejectionReason.trim().length === 0) {
-      Alert.alert('Error', 'Please provide a rejection reason');
+      setAlertModal({
+        visible: true,
+        title: t('common.error'),
+        message: t('providers.rejectionReasonRequired'),
+        type: 'error',
+      });
       return;
     }
 
@@ -123,12 +153,22 @@ export default function AdminProviderApprovalsScreen({navigation}: any) {
         updatedAt: firestore.FieldValue.serverTimestamp(),
       });
 
-      Alert.alert('Success', 'Provider rejected');
       setRejectModalVisible(false);
       setSelectedProvider(null);
       setRejectionReason('');
+      setAlertModal({
+        visible: true,
+        title: t('common.success'),
+        message: t('providers.providerRejected'),
+        type: 'success',
+      });
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to reject provider');
+      setAlertModal({
+        visible: true,
+        title: t('common.error'),
+        message: error.message || t('providers.failedToReject'),
+        type: 'error',
+      });
     }
   };
 
@@ -179,13 +219,13 @@ export default function AdminProviderApprovalsScreen({navigation}: any) {
           )}
           <View style={styles.providerInfo}>
             <Text style={styles.providerName}>{item.name}</Text>
-            <Text style={styles.providerServiceType}>{item.serviceType || 'General Service'}</Text>
+            <Text style={styles.providerServiceType}>{item.serviceType || t('providers.generalService')}</Text>
             <Text style={styles.providerEmail}>{item.email}</Text>
           </View>
           <View style={[styles.statusBadge, {backgroundColor: statusColor + '20'}]}>
             <Icon name={statusIcon} size={20} color={statusColor} />
             <Text style={[styles.statusText, {color: statusColor}]}>
-              {status.charAt(0).toUpperCase() + status.slice(1)}
+              {t(`common.${status}`)}
             </Text>
           </View>
         </View>
@@ -198,7 +238,9 @@ export default function AdminProviderApprovalsScreen({navigation}: any) {
           {item.experience && (
             <View style={styles.detailRow}>
               <Icon name="work" size={16} color="#666" />
-              <Text style={styles.detailText}>{item.experience} years experience</Text>
+              <Text style={styles.detailText}>
+                {t('providers.yearsExperience', {years: item.experience})}
+              </Text>
             </View>
           )}
         </View>
@@ -206,7 +248,9 @@ export default function AdminProviderApprovalsScreen({navigation}: any) {
         {status === 'rejected' && item.rejectionReason && (
           <View style={styles.rejectionBox}>
             <Icon name="info" size={16} color="#FF3B30" />
-            <Text style={styles.rejectionText}>Reason: {item.rejectionReason}</Text>
+            <Text style={styles.rejectionText}>
+              {t('providers.rejectionReasonLabel')}: {item.rejectionReason}
+            </Text>
           </View>
         )}
 
@@ -216,13 +260,13 @@ export default function AdminProviderApprovalsScreen({navigation}: any) {
               style={[styles.actionButton, styles.approveButton]}
               onPress={() => handleApprove(item.id, item.name)}>
               <Icon name="check" size={20} color="#fff" />
-              <Text style={styles.actionButtonText}>Approve</Text>
+              <Text style={styles.actionButtonText}>{t('common.approve')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionButton, styles.rejectButton]}
               onPress={() => handleReject(item)}>
               <Icon name="close" size={20} color="#fff" />
-              <Text style={styles.actionButtonText}>Reject</Text>
+              <Text style={styles.actionButtonText}>{t('common.reject')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -232,7 +276,7 @@ export default function AdminProviderApprovalsScreen({navigation}: any) {
             style={[styles.actionButton, styles.approveButton, styles.fullWidth]}
             onPress={() => handleApprove(item.id, item.name)}>
             <Icon name="refresh" size={20} color="#fff" />
-            <Text style={styles.actionButtonText}>Re-approve</Text>
+            <Text style={styles.actionButtonText}>{t('providers.reApprove')}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -243,7 +287,7 @@ export default function AdminProviderApprovalsScreen({navigation}: any) {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color="#FF9500" />
-        <Text style={styles.loadingText}>Loading provider approvals...</Text>
+        <Text style={styles.loadingText}>{t('providers.loadingApprovals')}</Text>
       </View>
     );
   }
@@ -263,7 +307,7 @@ export default function AdminProviderApprovalsScreen({navigation}: any) {
               style={[styles.filterChip, filter === f && styles.filterChipActive]}
               onPress={() => setFilter(f)}>
               <Text style={[styles.filterText, filter === f && styles.filterTextActive]}>
-                {f.charAt(0).toUpperCase() + f.slice(1)}
+                {t(`common.${f}`)}
                 {f === 'pending' && ` (${pendingCount})`}
                 {f === 'approved' && ` (${approvedCount})`}
                 {f === 'rejected' && ` (${rejectedCount})`}
@@ -278,7 +322,9 @@ export default function AdminProviderApprovalsScreen({navigation}: any) {
         <View style={styles.emptyContainer}>
           <Icon name="handyman" size={64} color="#ccc" />
           <Text style={styles.emptyText}>
-            {filter === 'pending' ? 'No pending approvals' : `No ${filter} providers`}
+            {filter === 'pending'
+              ? t('providers.noPendingApprovals')
+              : t('providers.noProvidersForFilter', {filter: t(`common.${filter}`)})}
           </Text>
         </View>
       ) : (
@@ -299,19 +345,21 @@ export default function AdminProviderApprovalsScreen({navigation}: any) {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Reject Provider</Text>
+              <Text style={styles.modalTitle}>{t('providers.rejectProviderTitle')}</Text>
               <TouchableOpacity onPress={() => setRejectModalVisible(false)}>
                 <Icon name="close" size={24} color="#333" />
               </TouchableOpacity>
             </View>
 
             <Text style={styles.modalSubtitle}>
-              Enter reason for rejecting {selectedProvider?.name}:
+              {selectedProvider?.name
+                ? t('providers.rejectProviderSubtitle', {name: selectedProvider.name})
+                : t('providers.rejectProviderSubtitle', {name: ''})}
             </Text>
 
             <TextInput
               style={styles.reasonInput}
-              placeholder="Enter rejection reason..."
+              placeholder={t('providers.rejectionReasonPlaceholder')}
               placeholderTextColor="#999"
               value={rejectionReason}
               onChangeText={setRejectionReason}
@@ -328,17 +376,53 @@ export default function AdminProviderApprovalsScreen({navigation}: any) {
                   setSelectedProvider(null);
                   setRejectionReason('');
                 }}>
-                <Text style={styles.cancelButtonText}>Cancel</Text>
+                <Text style={styles.cancelButtonText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalButton, styles.modalRejectButton]}
                 onPress={confirmReject}>
-                <Text style={styles.modalRejectButtonText}>Reject</Text>
+                <Text style={styles.modalRejectButtonText}>{t('common.reject')}</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
+
+      {/* Approve Confirmation Modal */}
+      <ConfirmationModal
+        visible={approveModalVisible}
+        title={t('providers.approveProviderTitle')}
+        message={
+          providerToApprove
+            ? t('providers.approveProviderConfirmWithName', {name: providerToApprove.name})
+            : t('providers.approveProviderConfirm')
+        }
+        confirmText={t('common.approve')}
+        cancelText={t('common.cancel')}
+        onConfirm={confirmApprove}
+        onCancel={() => {
+          setApproveModalVisible(false);
+          setProviderToApprove(null);
+        }}
+        type="success"
+        icon="checkmark-circle"
+      />
+
+      {/* Alert Modal */}
+      <AlertModal
+        visible={alertModal.visible}
+        title={alertModal.title}
+        message={alertModal.message}
+        type={alertModal.type}
+        onClose={() =>
+          setAlertModal({
+            visible: false,
+            title: '',
+            message: '',
+            type: 'info',
+          })
+        }
+      />
     </View>
   );
 }

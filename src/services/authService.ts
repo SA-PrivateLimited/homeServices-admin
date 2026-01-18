@@ -15,8 +15,9 @@ const COLLECTIONS = {
 };
 
 // Configure Google Sign-In
+// Web Client ID from google-services.json (client_type 3)
 GoogleSignin.configure({
-  webClientId: '136199853280-v1ea3pa1fr44qv5hihp6ougjcrib3dj5.apps.googleusercontent.com',
+  webClientId: '425944993130-342d2o2ao3is7ljq3bi52m6q55279bh9.apps.googleusercontent.com',
   offlineAccess: true,
   forceCodeForRefreshToken: true,
 });

@@ -10,31 +10,23 @@ import {
   TextInput,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import firestore from '@react-native-firebase/firestore';
 import {useStore} from '../store';
 import AlertModal from '../components/AlertModal';
 import useTranslation from '../hooks/useTranslation';
+import {jobCardsApi, JobCard as ApiJobCard} from '../services/api/jobCardsApi';
 
-interface JobCard {
+type JobCard = Omit<ApiJobCard, '_id' | 'id'> & {
   id: string;
-  providerId: string;
-  providerName: string;
-  customerId: string;
-  customerName: string;
-  customerPhone: string;
-  serviceType: string;
-  problem?: string;
-  status: 'pending' | 'accepted' | 'in-progress' | 'completed' | 'cancelled';
-  scheduledTime?: Date;
   createdAt: Date;
   updatedAt: Date;
+  scheduledTime?: Date;
   customerAddress?: {
     address: string;
     city?: string;
     state?: string;
     pincode: string;
   };
-}
+};
 
 export default function AdminJobCardsListScreen({navigation}: any) {
   const [jobCards, setJobCards] = useState<JobCard[]>([]);
@@ -77,36 +69,45 @@ export default function AdminJobCardsListScreen({navigation}: any) {
       return;
     }
 
-    const unsubscribe = firestore()
-      .collection('jobCards')
-      .orderBy('createdAt', 'desc')
-      .onSnapshot(
-        snapshot => {
-          const cardsList = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-            createdAt: doc.data().createdAt?.toDate() || new Date(),
-            updatedAt: doc.data().updatedAt?.toDate() || new Date(),
-            scheduledTime: doc.data().scheduledTime?.toDate(),
-          })) as JobCard[];
-
-          setJobCards(cardsList);
-          setLoading(false);
-        },
-        error => {
-          console.error('Error loading job cards:', error);
-          setAlertModal({
-            visible: true,
-            title: t('common.error'),
-            message: t('jobCards.failedToLoad'),
-            type: 'error',
-          });
-          setLoading(false);
-        },
-      );
-
-    return () => unsubscribe();
+    loadJobCards();
   }, [currentUser, navigation]);
+
+  const loadJobCards = async () => {
+    try {
+      setLoading(true);
+      const apiJobCards = await jobCardsApi.getAll();
+      
+      // Map API response to component format
+      const cardsList: JobCard[] = apiJobCards.map(card => ({
+        ...card,
+        id: card._id || card.id || '',
+        createdAt: card.createdAt ? new Date(card.createdAt) : new Date(),
+        updatedAt: card.updatedAt ? new Date(card.updatedAt) : new Date(),
+        scheduledTime: card.scheduledTime ? new Date(card.scheduledTime) : undefined,
+        customerAddress: card.customerAddress ? {
+          address: card.customerAddress.address || '',
+          city: card.customerAddress.city,
+          state: card.customerAddress.state,
+          pincode: card.customerAddress.pincode || '',
+        } : undefined,
+      }));
+
+      // Sort by createdAt descending (most recent first)
+      cardsList.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+      setJobCards(cardsList);
+      setLoading(false);
+    } catch (error: any) {
+      console.error('Error loading job cards:', error);
+      setAlertModal({
+        visible: true,
+        title: t('common.error'),
+        message: error.message || t('jobCards.failedToLoad'),
+        type: 'error',
+      });
+      setLoading(false);
+    }
+  };
 
   const getStatusColor = (status: JobCard['status']) => {
     switch (status) {
@@ -298,10 +299,7 @@ export default function AdminJobCardsListScreen({navigation}: any) {
           keyExtractor={item => item.id}
           contentContainerStyle={styles.listContent}
           refreshing={loading}
-          onRefresh={() => {
-            setLoading(true);
-            // The useEffect will reload
-          }}
+          onRefresh={loadJobCards}
         />
       )}
 

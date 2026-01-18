@@ -15,11 +15,6 @@ import LoginScreen from '../screens/LoginScreen';
 import SignUpScreen from '../screens/SignUpScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 
-// Screens - Consultations
-import DoctorsListScreen from '../screens/DoctorsListScreen';
-import DoctorDetailsScreen from '../screens/DoctorDetailsScreen';
-import BookingScreen from '../screens/BookingScreen';
-import ConsultationsHistoryScreen from '../screens/ConsultationsHistoryScreen';
 // import VideoCallScreen from '../screens/VideoCallScreen'; // Temporarily disabled
 
 const Stack = createNativeStackNavigator();
@@ -41,35 +36,6 @@ const ConsultationsStack = () => {
           fontWeight: '600',
         },
       }}>
-      <Stack.Screen
-        name="DoctorsList"
-        component={DoctorsListScreen}
-        options={({navigation}) => ({
-          title: 'Find Doctors',
-          headerRight: () => (
-            <TouchableOpacity
-              onPress={() => navigation.navigate('ConsultationsHistory')}
-              style={{marginRight: 15}}>
-              <Icon name="calendar-outline" size={24} color={theme.text} />
-            </TouchableOpacity>
-          ),
-        })}
-      />
-      <Stack.Screen
-        name="ConsultationsHistory"
-        component={ConsultationsHistoryScreen}
-        options={{title: 'My Consultations'}}
-      />
-      <Stack.Screen
-        name="DoctorDetails"
-        component={DoctorDetailsScreen}
-        options={{title: 'Doctor Details'}}
-      />
-      <Stack.Screen
-        name="Booking"
-        component={BookingScreen}
-        options={{title: 'Book Consultation'}}
-      />
       <Stack.Screen
         name="Profile"
         component={ProfileScreen}

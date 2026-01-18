@@ -9,11 +9,6 @@ import {lightTheme, darkTheme} from '../utils/theme';
 // Screens - Settings (kept for profile management)
 import SettingsScreen from '../screens/SettingsScreen';
 
-// Screens - Consultations
-import DoctorsListScreen from '../screens/DoctorsListScreen';
-import DoctorDetailsScreen from '../screens/DoctorDetailsScreen';
-import BookingScreen from '../screens/BookingScreen';
-import ConsultationsHistoryScreen from '../screens/ConsultationsHistoryScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
 
@@ -41,62 +36,9 @@ const ConsultationsStack = () => {
         },
       }}>
       <Stack.Screen
-        name="DoctorsList"
-        component={DoctorsListScreen}
-        options={({navigation}) => ({
-          title: 'Find Doctors',
-          headerLeft: () => <PincodeHeader />,
-          headerRight: () => (
-            <View style={{flexDirection: 'row', alignItems: 'center'}}>
-              <TouchableOpacity
-                onPress={() => navigation.navigate('ConsultationsHistory')}
-                style={{marginRight: 8}}>
-                <Icon name="calendar-outline" size={24} color={theme.text} />
-              </TouchableOpacity>
-              <NotificationIcon
-                onPress={() => navigation.navigate('Notifications')}
-              />
-            </View>
-          ),
-          headerBackVisible: false,
-        })}
-      />
-      <Stack.Screen
-        name="ConsultationsHistory"
-        component={ConsultationsHistoryScreen}
-        options={({navigation}) => {
-          const canGoBack = navigation.canGoBack();
-          return {
-            title: 'My Consultations',
-            headerLeft: canGoBack ? undefined : () => <PincodeHeader />,
-            headerRight: () => (
-              <View style={{flexDirection: 'row', alignItems: 'center', marginRight: 8}}>
-                {canGoBack && <PincodeHeader />}
-                {canGoBack && <View style={{width: 8}} />}
-                <NotificationIcon
-                  onPress={() => navigation.navigate('Notifications')}
-                />
-              </View>
-            ),
-            headerBackVisible: canGoBack,
-            headerBackTitleVisible: false,
-          };
-        }}
-      />
-      <Stack.Screen
         name="Notifications"
         component={NotificationsScreen}
         options={{title: 'Notifications'}}
-      />
-      <Stack.Screen
-        name="DoctorDetails"
-        component={DoctorDetailsScreen}
-        options={{title: 'Doctor Details'}}
-      />
-      <Stack.Screen
-        name="Booking"
-        component={BookingScreen}
-        options={{title: 'Book Consultation'}}
       />
       <Stack.Screen
         name="Profile"

@@ -22,6 +22,7 @@ if (typeof window !== 'undefined') {
 import React, {useEffect} from 'react';
 import {StatusBar, Platform, PermissionsAndroid} from 'react-native';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
+import './src/i18n'; // Initialize i18n
 import AppNavigator from './src/navigation/AppNavigator';
 import {useStore} from './src/store';
 import NotificationService from './src/services/notificationService';

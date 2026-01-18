@@ -172,6 +172,11 @@ export default function AdminServiceCategoryDetailsScreen({
                   {question.question}
                   {question.required && <Text style={styles.required}> *</Text>}
                 </Text>
+                {question.questionHi && (
+                  <Text style={[styles.questionTextHi, {color: theme.textSecondary}]}>
+                    (Hindi) {question.questionHi}
+                  </Text>
+                )}
                 <View style={styles.questionMeta}>
                   <View style={[styles.typeBadge, {backgroundColor: category.color + '20'}]}>
                     <Icon name={getQuestionTypeIcon(question.type)} size={14} color={category.color} />
@@ -183,22 +188,38 @@ export default function AdminServiceCategoryDetailsScreen({
                     </View>
                   )}
                 </View>
-                {question.placeholder && (
-                  <Text style={[styles.placeholder, {color: theme.textSecondary}]}>
-                    Placeholder: {question.placeholder}
-                  </Text>
+                {(question.placeholder || question.placeholderHi) && (
+                  <View style={styles.placeholderContainer}>
+                    {question.placeholder && (
+                      <Text style={[styles.placeholder, {color: theme.textSecondary}]}>
+                        Placeholder (EN): {question.placeholder}
+                      </Text>
+                    )}
+                    {question.placeholderHi && (
+                      <Text style={[styles.placeholder, {color: theme.textSecondary}]}>
+                        Placeholder (HI): {question.placeholderHi}
+                      </Text>
+                    )}
+                  </View>
                 )}
-                {question.options && question.options.length > 0 && (
+                {(question.options && question.options.length > 0) || (question.optionsHi && question.optionsHi.length > 0) ? (
                   <View style={styles.optionsList}>
-                    <Text style={[styles.optionsLabel, {color: theme.textSecondary}]}>Options:</Text>
-                    {question.options.map((option, optIdx) => (
+                    <Text style={[styles.optionsLabel, {color: theme.textSecondary}]}>Options (English):</Text>
+                    {question.options?.map((option, optIdx) => (
                       <View key={optIdx} style={styles.optionItem}>
                         <Icon name="radio-button-checked" size={12} color={theme.textSecondary} />
-                        <Text style={[styles.optionText, {color: theme.text}]}>{option}</Text>
+                        <Text style={[styles.optionText, {color: theme.text}]}>
+                          {option}
+                          {question.optionsHi?.[optIdx] && (
+                            <Text style={[styles.optionTextHi, {color: theme.textSecondary}]}>
+                              {' '}({question.optionsHi[optIdx]})
+                            </Text>
+                          )}
+                        </Text>
                       </View>
                     ))}
                   </View>
-                )}
+                ) : null}
               </View>
             </View>
           </View>
@@ -513,12 +534,22 @@ const styles = StyleSheet.create({
   },
   questionText: {
     fontSize: 16,
-    marginBottom: 8,
+    marginBottom: 4,
     lineHeight: 22,
+  },
+  questionTextHi: {
+    fontSize: 14,
+    marginBottom: 8,
+    lineHeight: 20,
+    fontStyle: 'italic',
   },
   required: {
     color: '#FF3B30',
     fontWeight: 'bold',
+  },
+  placeholderContainer: {
+    marginTop: 8,
+    marginBottom: 8,
   },
   questionMeta: {
     flexDirection: 'row',
@@ -569,6 +600,10 @@ const styles = StyleSheet.create({
   },
   optionText: {
     fontSize: 13,
+  },
+  optionTextHi: {
+    fontSize: 12,
+    fontStyle: 'italic',
   },
   loadingContainer: {
     alignItems: 'center',
